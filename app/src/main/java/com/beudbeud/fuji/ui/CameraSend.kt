@@ -178,9 +178,10 @@ private suspend fun sendRecipe(
                         val saved = recipeFromPresetProps(
                             existing.name, existing.props, camera.modelName(),
                         ).let { it.copy(tags = it.tags + "backup") }
-                        backupRepo.upsert(saved)
-                        DebugLog.log("backed up C$slot as \"${saved.name}\"")
-                        notes += context.getString(R.string.backup_slot_saved, slot, saved.name)
+                        if (backupRepo.addImported(listOf(saved)).added > 0) {
+                            DebugLog.log("backed up C$slot as \"${saved.name}\"")
+                            notes += context.getString(R.string.backup_slot_saved, slot, saved.name)
+                        }
                     }
                 }
 

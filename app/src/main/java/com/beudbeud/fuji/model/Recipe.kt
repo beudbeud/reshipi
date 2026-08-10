@@ -168,6 +168,27 @@ fun mergeRecipes(current: List<Recipe>, incoming: List<Recipe>): List<Recipe> {
     return result.values.toList()
 }
 
+/**
+ * Identity of a recipe by what it actually tells the camera to do.
+ *
+ * Import paths mint a fresh id every time — refetching a page, rescanning a card,
+ * rereading a slot — so ids cannot tell "the same recipe again" from "a new one".
+ * Name, notes, tags and photos are excluded on purpose: the same look published
+ * under two names is still one recipe. ISO and exposure compensation are excluded
+ * too, being shooting advice rather than a picture setting.
+ */
+val Recipe.settingsKey: String
+    get() = listOf(
+        filmSimulation, whiteBalance,
+        // Only meaningful for their own mode; the camera keeps a stale value otherwise
+        if (whiteBalance == WhiteBalance.KELVIN) kelvin ?: "" else "",
+        wbShiftRed, wbShiftBlue,
+        dynamicRange, dRangePriority, highlight, shadow, color, sharpness,
+        noiseReduction, grainEffect,
+        if (grainEffect == Strength.OFF) "" else grainSize,
+        colorChromeEffect, colorChromeFxBlue, clarity,
+    ).joinToString("|")
+
 /** "+1.5", "0", "-2" — half steps only shown when needed. */
 fun formatSigned(v: Double): String {
     val s = if (v % 1.0 == 0.0) v.toInt().toString() else v.toString()

@@ -157,8 +157,7 @@ fun CameraSlotsScreen(
                         enabled = !busy,
                         onImport = {
                             if (recipe != null) {
-                                repo.upsert(recipe)
-                                status = context.getString(R.string.import_done, 1)
+                                status = importMessage(context, repo.addImported(listOf(recipe)))
                             }
                         },
                         onWrite = { pickForSlot = slot },

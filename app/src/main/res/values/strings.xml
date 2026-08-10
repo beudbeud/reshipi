@@ -118,4 +118,16 @@
     <string name="wb_underwater">Underwater</string>
     <string name="wb_kelvin">Kelvin</string>
     <string name="open_in_library">Open</string>
+    <string name="import_done_dupes">%1$d imported, %2$d already in your library</string>
+    <string name="duplicate_title">Already in your library</string>
+    <string name="duplicate_text">These settings match “%1$s”. Save anyway?</string>
+    <string name="save_anyway">Save anyway</string>
+    <plurals name="import_all_duplicates">
+        <item quantity="one">Already in your library</item>
+        <item quantity="other">All %1$d are already in your library</item>
+    </plurals>
+    <string name="sort_name">Name</string>
+    <string name="sort_recent">Recent</string>
+    <string name="sort_simulation">By film</string>
+    <string name="filter_all">All</string>
 </resources>

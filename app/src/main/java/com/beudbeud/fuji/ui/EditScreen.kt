@@ -26,6 +26,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -64,6 +65,7 @@ fun EditScreen(
     onBack: () -> Unit,
 ) {
     var draft by remember { mutableStateOf(existing ?: Recipe()) }
+    var duplicate by remember { mutableStateOf<Recipe?>(null) }
     val gen = draft.generation
 
     val photoPicker = rememberLauncherForActivityResult(
@@ -83,7 +85,17 @@ fun EditScreen(
                 },
                 actions = {
                     TextButton(
-                        onClick = { repo.upsert(draft); onDone(draft) },
+                        onClick = {
+                            // Rescanning the same card or refetching the same page lands
+                            // here with a new id; only the settings can tell it apart.
+                            val twin = repo.duplicateOf(draft)
+                            if (twin == null) {
+                                repo.upsert(draft)
+                                onDone(draft)
+                            } else {
+                                duplicate = twin
+                            }
+                        },
                         enabled = draft.name.isNotBlank(),
                     ) { Text(stringResource(R.string.save)) }
                 },
@@ -284,4 +296,22 @@ fun EditScreen(
             Spacer(Modifier.height(32.dp))
         }
     }
+    duplicate?.let { twin ->
+        AlertDialog(
+            onDismissRequest = { duplicate = null },
+            title = { Text(stringResource(R.string.duplicate_title)) },
+            text = { Text(stringResource(R.string.duplicate_text, twin.name)) },
+            confirmButton = {
+                TextButton(onClick = { duplicate = null; repo.upsert(draft); onDone(draft) }) {
+                    Text(stringResource(R.string.save_anyway))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { duplicate = null; onDone(twin) }) {
+                    Text(stringResource(R.string.open_in_library))
+                }
+            },
+        )
+    }
+
 }

@@ -2,6 +2,7 @@ package com.beudbeud.fuji.ui
 
 import android.content.Context
 import android.net.Uri
+import com.beudbeud.fuji.R
 import com.beudbeud.fuji.data.CardCrop
 import com.beudbeud.fuji.data.FujiExif
 import com.beudbeud.fuji.data.FujiStyleCard
@@ -58,4 +59,13 @@ internal fun importRecipeImage(
             }
             .addOnFailureListener { onResult(null) }
     }.onFailure { onResult(null) }
+}
+
+/** "3 imported" / "3 imported, 2 already in your library". */
+internal fun importMessage(context: Context, r: RecipeRepository.ImportResult): String = when {
+    r.duplicates == 0 -> context.getString(R.string.import_done, r.added)
+    r.added == 0 -> context.resources.getQuantityString(
+        R.plurals.import_all_duplicates, r.duplicates, r.duplicates,
+    )
+    else -> context.getString(R.string.import_done_dupes, r.added, r.duplicates)
 }

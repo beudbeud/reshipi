@@ -5,6 +5,7 @@ import android.net.Uri
 import com.beudbeud.fuji.model.Recipe
 import com.beudbeud.fuji.model.RecipeExport
 import com.beudbeud.fuji.model.mergeRecipes
+import com.beudbeud.fuji.model.settingsKey
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.serialization.encodeToString
@@ -86,10 +87,35 @@ class RecipeRepository(private val context: Context) {
 
     private fun merge(incoming: List<Recipe>): Int {
         val before = _recipes.value.associateBy { it.id }
-        val merged = mergeRecipes(_recipes.value, incoming)
+        // Same settings under a different id: someone else's copy of a recipe we
+        // already have. Merging by id alone would shelve it as a second entry.
+        val mine = _recipes.value.associateBy { it.settingsKey }
+        val fresh = incoming.filter { mine[it.settingsKey]?.id?.equals(it.id) != false }
+        val merged = mergeRecipes(_recipes.value, fresh)
         persist(merged)
         return merged.count { before[it.id] != it }
     }
+
+    /** The recipe already holding these settings, if any — ignoring [recipe] itself. */
+    fun duplicateOf(recipe: Recipe): Recipe? =
+        _recipes.value.firstOrNull { it.settingsKey == recipe.settingsKey && it.id != recipe.id }
+
+    /**
+     * Adds recipes that arrived with fresh ids (web pages, cards, camera slots).
+     * Those ids are new every time, so identical settings are the only way to
+     * recognise something already in the library.
+     */
+    fun addImported(incoming: List<Recipe>): ImportResult {
+        val seen = _recipes.value.map { it.settingsKey }.toMutableSet()
+        val added = mutableListOf<Recipe>()
+        for (r in incoming) {
+            if (seen.add(r.settingsKey)) added += r.copy(updatedAt = System.currentTimeMillis())
+        }
+        if (added.isNotEmpty()) persist(_recipes.value + added)
+        return ImportResult(added = added.size, duplicates = incoming.size - added.size)
+    }
+
+    data class ImportResult(val added: Int, val duplicates: Int)
 
     // -- Full backup: recipes.json + the photos they reference, in one archive --
 

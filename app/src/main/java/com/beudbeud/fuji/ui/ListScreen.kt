@@ -31,6 +31,8 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import com.beudbeud.fuji.model.FilmSimulation
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
@@ -91,6 +93,9 @@ fun ListScreen(
     var query by remember { mutableStateOf("") }
     var searching by remember { mutableStateOf(false) }
     var favOnly by remember { mutableStateOf(false) }
+    var sort by remember { mutableStateOf(SortOrder.NAME) }
+    var simFilter by remember { mutableStateOf<FilmSimulation?>(null) }
+    var cameraFilter by remember { mutableStateOf<String?>(null) }
     var menuOpen by remember { mutableStateOf(false) }
     var showLogs by remember { mutableStateOf(false) }
     var showTextImport by remember { mutableStateOf(false) }
@@ -169,13 +174,27 @@ fun ListScreen(
 
     val shown = recipes
         .filter { !favOnly || it.favorite }
+        .filter { simFilter == null || it.filmSimulation == simFilter }
+        .filter { cameraFilter == null || it.cameraLabel == cameraFilter }
         .filter {
             query.isBlank() || it.name.contains(query, ignoreCase = true) ||
                 it.filmSimulation.label.contains(query, ignoreCase = true) ||
                 it.cameraLabel.contains(query, ignoreCase = true) ||
                 it.tags.any { tag -> tag.contains(query, ignoreCase = true) }
         }
-        .sortedBy { it.name.lowercase() }
+        .let { list ->
+            when (sort) {
+                SortOrder.NAME -> list.sortedBy { it.name.lowercase() }
+                SortOrder.RECENT -> list.sortedByDescending { it.updatedAt }
+                // Group by film, alphabetical within each
+                SortOrder.SIMULATION ->
+                    list.sortedWith(compareBy({ it.filmSimulation.ordinal }, { it.name.lowercase() }))
+            }
+        }
+
+    // Offer only values the library actually contains
+    val simsPresent = remember(recipes) { recipes.map { it.filmSimulation }.distinct().sortedBy { it.ordinal } }
+    val camerasPresent = remember(recipes) { recipes.map { it.cameraLabel }.distinct().sorted() }
 
     // Search suggestions from the data itself: tags, film simulations, cameras
     val suggestions = remember(recipes) {
@@ -223,10 +242,8 @@ fun ListScreen(
                             }
                             else -> {
                                 showTextImport = false
-                                recipes.forEach { repo.upsert(it) }
-                                scope.launch {
-                                    snackbar.showSnackbar(context.getString(R.string.import_done, recipes.size))
-                                }
+                                val r = repo.addImported(recipes)
+                                scope.launch { snackbar.showSnackbar(importMessage(context, r)) }
                             }
                         }
                     },
@@ -388,13 +405,38 @@ fun ListScreen(
                     }
                 }
             }
-            FilterChip(
-                selected = favOnly,
-                onClick = { favOnly = !favOnly },
-                label = { Text(stringResource(R.string.favorites)) },
-                leadingIcon = { Icon(Icons.Default.Favorite, null) },
-                modifier = Modifier.padding(horizontal = 16.dp),
-            )
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier
+                    .horizontalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp),
+            ) {
+                FilterChip(
+                    selected = favOnly,
+                    onClick = { favOnly = !favOnly },
+                    label = { Text(stringResource(R.string.favorites)) },
+                    leadingIcon = { Icon(Icons.Default.Favorite, null) },
+                )
+                MenuChip(
+                    label = simFilter?.label ?: stringResource(R.string.film_simulation),
+                    selected = simFilter != null,
+                    options = simsPresent.map { it.label to it },
+                    onPick = { simFilter = it },
+                )
+                MenuChip(
+                    label = cameraFilter ?: stringResource(R.string.camera_model),
+                    selected = cameraFilter != null,
+                    options = camerasPresent.map { it to it },
+                    onPick = { cameraFilter = it },
+                )
+                MenuChip(
+                    label = stringResource(sort.labelRes),
+                    selected = sort != SortOrder.NAME,
+                    options = SortOrder.entries.map { stringResource(it.labelRes) to it },
+                    clearable = false,
+                    onPick = { sort = it ?: SortOrder.NAME },
+                )
+            }
             if (shown.isEmpty()) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text(
@@ -481,6 +523,49 @@ private fun RecipeCard(r: Recipe, repo: RecipeRepository, onOpen: (String) -> Un
                     style = MaterialTheme.typography.labelSmall,
                     color = Color.White.copy(alpha = 0.7f),
                     maxLines = 1,
+                )
+            }
+        }
+    }
+}
+
+private enum class SortOrder(val labelRes: Int) {
+    NAME(R.string.sort_name),
+    RECENT(R.string.sort_recent),
+    SIMULATION(R.string.sort_simulation),
+}
+
+/**
+ * A chip that drops down a list of choices. [clearable] adds an "All" entry that
+ * picks null — sorting always has an answer, so it opts out.
+ */
+@Composable
+private fun <T> MenuChip(
+    label: String,
+    selected: Boolean,
+    options: List<Pair<String, T>>,
+    onPick: (T?) -> Unit,
+    clearable: Boolean = true,
+) {
+    var open by remember { mutableStateOf(false) }
+    Box {
+        FilterChip(
+            selected = selected,
+            onClick = { open = true },
+            label = { Text(label) },
+            trailingIcon = { Icon(Icons.Default.KeyboardArrowDown, null) },
+        )
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            if (clearable) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.filter_all)) },
+                    onClick = { open = false; onPick(null) },
+                )
+            }
+            options.forEach { (text, value) ->
+                DropdownMenuItem(
+                    text = { Text(text) },
+                    onClick = { open = false; onPick(value) },
                 )
             }
         }

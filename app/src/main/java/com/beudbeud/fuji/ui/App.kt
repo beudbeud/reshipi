@@ -103,12 +103,8 @@ fun App(repo: RecipeRepository, sharedText: String? = null, sharedImage: android
                         screen = Screen.Edit(null)
                     }
                     else -> {
-                        recipes.forEach { repo.upsert(it) }
-                        Toast.makeText(
-                            context,
-                            context.getString(R.string.import_done, recipes.size),
-                            Toast.LENGTH_LONG,
-                        ).show()
+                        val r = repo.addImported(recipes)
+                        Toast.makeText(context, importMessage(context, r), Toast.LENGTH_LONG).show()
                     }
                 }
             }

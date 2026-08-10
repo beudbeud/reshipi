@@ -110,8 +110,7 @@ fun ImportFromCameraDialog(repo: RecipeRepository, onDismiss: () -> Unit, onImpo
                 onClick = {
                     val picked = found.filter { it.first in selected }.map { it.second }
                     scope.launch {
-                        picked.forEach { repo.upsert(it) }
-                        onImported(picked.size)
+                        onImported(repo.addImported(picked).added)
                         onDismiss()
                     }
                 },
