@@ -67,7 +67,7 @@ fun simAccent(sim: FilmSimulation): Color = when (sim) {
 }
 
 @Composable
-fun App(repo: RecipeRepository, sharedText: String? = null) {
+fun App(repo: RecipeRepository, sharedText: String? = null, sharedImage: android.net.Uri? = null) {
     MaterialTheme(colorScheme = DarkColors) {
         var screen by remember { mutableStateOf<Screen>(Screen.Home) }
         // Pre-filled draft when creating a recipe from a photo's EXIF
@@ -87,6 +87,20 @@ fun App(repo: RecipeRepository, sharedText: String? = null) {
                     screen = Screen.Edit(null)
                 } else {
                     Toast.makeText(context, R.string.card_parse_failed, Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+
+        // Image shared from the gallery: same pipeline as "New recipe from an image"
+        LaunchedEffect(sharedImage) {
+            if (sharedImage != null) {
+                importRecipeImage(context, repo, sharedImage) { recipe ->
+                    if (recipe != null) {
+                        photoDraft = recipe
+                        screen = Screen.Edit(null)
+                    } else {
+                        Toast.makeText(context, R.string.photo_no_recipe, Toast.LENGTH_LONG).show()
+                    }
                 }
             }
         }

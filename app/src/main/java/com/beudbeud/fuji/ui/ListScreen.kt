@@ -133,36 +133,16 @@ fun ListScreen(
         }
     }
 
-    // One entry point for images: Fuji EXIF first (out-of-camera JPEG),
-    // FujiStyle-card OCR as fallback.
     val photoImportLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.PickVisualMedia()
     ) { uri ->
         if (uri != null) {
-            val fail: (Throwable?) -> Unit = {
-                scope.launch { snackbar.showSnackbar(context.getString(R.string.photo_no_recipe)) }
-            }
-            val fromExif = runCatching {
-                val bytes = context.contentResolver.openInputStream(uri)!!.use { it.readBytes() }
-                FujiExif.parse(bytes)
-            }.getOrNull()
-            if (fromExif != null) {
-                onCreateFromPhoto(fromExif.copy(photos = listOf(repo.addPhoto(uri))))
-            } else {
-                runCatching {
-                    TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
-                        .process(InputImage.fromFilePath(context, uri))
-                        .addOnSuccessListener { ocr ->
-                            val recipe = FujiStyleCard.parse(ocr.text)
-                            if (recipe == null) {
-                                fail(null)
-                            } else {
-                                // The card image doubles as the illustration photo
-                                onCreateFromPhoto(recipe.copy(photos = listOf(repo.addPhoto(uri))))
-                            }
-                        }
-                        .addOnFailureListener(fail)
-                }.onFailure(fail)
+            importRecipeImage(context, repo, uri) { recipe ->
+                if (recipe == null) {
+                    scope.launch { snackbar.showSnackbar(context.getString(R.string.photo_no_recipe)) }
+                } else {
+                    onCreateFromPhoto(recipe)
+                }
             }
         }
     }
