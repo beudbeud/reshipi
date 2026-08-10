@@ -313,6 +313,12 @@ fun ListScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = onOpenCameraSlots) {
+                        Icon(
+                            painterResource(R.drawable.ic_camera_body),
+                            stringResource(R.string.camera_slots),
+                        )
+                    }
                     IconButton(onClick = startQrScan) {
                         Icon(
                             painterResource(R.drawable.ic_qr_scan),
@@ -342,10 +348,6 @@ fun ListScreen(
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.import_text)) },
                                 onClick = { menuOpen = false; showTextImport = true },
-                            )
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.camera_slots)) },
-                                onClick = { menuOpen = false; onOpenCameraSlots() },
                             )
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.import_from_camera)) },
