@@ -214,7 +214,16 @@ class FujiCamera private constructor(
                 for (id in 0xD18E..0xD1A5) readProp(id)?.let { put(id, it) }
             }
             presets += CameraPreset(slot, name, props)
-            DebugLog.log("readPresets: C$slot \"$name\" (${props.size} properties)")
+            // Log the raw white-balance and film-sim codes for every slot, named
+            // or not: this is the diagnostic that identifies unmapped values
+            // (custom WB), and an unnamed slot must not silently skip it.
+            fun raw(id: Int) = props[id]?.takeIf { it.size >= 2 }
+                ?.let { "0x%04X".format((it[0].toInt() and 0xFF) or ((it[1].toInt() and 0xFF) shl 8)) }
+                ?: "-"
+            DebugLog.log(
+                "readPresets: C$slot \"$name\" (${props.size} props) " +
+                    "wb=${raw(0xD199)} sim=${raw(0xD192)} kelvin=${raw(0xD19C)}"
+            )
         }
         runCatching { writeProp(PRESET_SLOT, packU16(original)) }
         return presets
