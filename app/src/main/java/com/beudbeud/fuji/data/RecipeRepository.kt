@@ -62,6 +62,13 @@ class RecipeRepository(private val context: Context) {
         return name
     }
 
+    /** Stores an in-memory JPEG (e.g. an in-camera render), returns the filename. */
+    fun addPhotoBytes(bytes: ByteArray): String {
+        val name = UUID.randomUUID().toString() + ".jpg"
+        photoFile(name).writeBytes(bytes)
+        return name
+    }
+
     fun exportJson(): String = json.encodeToString(RecipeExport(recipes = _recipes.value))
 
     /** Merges by id, returns the number of recipes added or updated. */

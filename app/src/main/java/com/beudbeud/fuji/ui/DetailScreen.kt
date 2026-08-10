@@ -70,6 +70,7 @@ fun DetailScreen(
     var confirmDelete by remember { mutableStateOf(false) }
     var fullPhoto by remember { mutableStateOf<String?>(null) }
     var showSend by remember { mutableStateOf(false) }
+    var showRafPreview by remember { mutableStateOf(false) }
     var showQr by remember { mutableStateOf(false) }
     var menuOpen by remember { mutableStateOf(false) }
     val gen = recipe.generation
@@ -112,6 +113,10 @@ fun DetailScreen(
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.share_qr)) },
                                 onClick = { menuOpen = false; showQr = true },
+                            )
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.raf_preview)) },
+                                onClick = { menuOpen = false; showRafPreview = true },
                             )
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.delete)) },
@@ -194,6 +199,10 @@ fun DetailScreen(
 
     if (showQr) {
         QrDialog(recipe = recipe, onDismiss = { showQr = false })
+    }
+
+    if (showRafPreview) {
+        RafPreviewDialog(recipe = recipe, repo = repo, onDismiss = { showRafPreview = false })
     }
 
     if (confirmDelete) {

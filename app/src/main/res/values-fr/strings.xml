@@ -69,6 +69,14 @@
     <string name="import_done">%1$d recettes importées</string>
     <string name="import_failed">Échec de l\'import : fichier invalide</string>
 
+    <string name="raf_preview">Aperçu sur le boîtier (RAF)</string>
+    <string name="raf_choose">Choisir un fichier RAF</string>
+    <string name="raf_hint">Développe un fichier RAW dans le boîtier avec les réglages de cette recette, via le vrai moteur Fujifilm. Mode USB du boîtier : CONV. RAW/RESTAURER SAUVEG.</string>
+    <string name="raf_uploading">Envoi du RAF vers le boîtier…</string>
+    <string name="raf_developing">Développement dans le boîtier…</string>
+    <string name="raf_downloading">Téléchargement du JPEG…</string>
+    <string name="raf_add_photo">Ajouter comme photo d\'exemple</string>
+
     <string name="debug_logs">Logs de débogage</string>
     <string name="close">Fermer</string>
     <string name="clear">Effacer</string>

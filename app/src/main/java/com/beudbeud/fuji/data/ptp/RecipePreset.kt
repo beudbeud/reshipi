@@ -12,7 +12,7 @@ import kotlin.math.roundToInt
 // Encodings and write order from FilmKit's translateUIToPresetProps
 // (github.com/eggricesoy/filmkit, MIT license), confirmed on X100VI.
 
-private val FILM_SIM_CODE = mapOf(
+internal val FILM_SIM_CODE = mapOf(
     FilmSimulation.PROVIA to 0x01,
     FilmSimulation.VELVIA to 0x02,
     FilmSimulation.ASTIA to 0x03,
@@ -35,7 +35,7 @@ private val FILM_SIM_CODE = mapOf(
     FilmSimulation.REALA_ACE to 0x14,
 )
 
-private val WB_CODE = mapOf(
+internal val WB_CODE = mapOf(
     WhiteBalance.AUTO to 0x0002,
     WhiteBalance.DAYLIGHT to 0x0004,
     WhiteBalance.SHADE to 0x8006,
@@ -48,12 +48,12 @@ private val WB_CODE = mapOf(
 )
 
 /** HighIsoNR uses a proprietary non-linear encoding (from Wireshark captures). */
-private val NR_ENCODE = mapOf(
+internal val NR_ENCODE = mapOf(
     -4 to 0x8000, -3 to 0x7000, -2 to 0x4000, -1 to 0x3000,
     0 to 0x2000, 1 to 0x1000, 2 to 0x0000, 3 to 0x6000, 4 to 0x5000,
 )
 
-private val MONO_SIMS = setOf(
+internal val MONO_SIMS = setOf(
     FilmSimulation.MONOCHROME, FilmSimulation.MONOCHROME_YE,
     FilmSimulation.MONOCHROME_R, FilmSimulation.MONOCHROME_G,
     FilmSimulation.SEPIA, FilmSimulation.ACROS, FilmSimulation.ACROS_YE,
@@ -102,4 +102,47 @@ fun Recipe.toPresetProps(): List<Pair<Int, ByteArray>> = buildList {
     add(0xD1A3 to packU16(1)) // LongExpNR on (observed default)
     add(0xD1A4 to packU16(1)) // ColorSpace sRGB
     add(0xD1A5 to packU16(7)) // unknown, constant in all observed presets
+}
+
+/**
+ * Patch the camera's native d185 conversion profile with this recipe.
+ * Field indices from FilmKit's NativeIdx (confirmed on X100VI): the profile
+ * ends with numParams (u16 at offset 0) int32 fields. Untouched fields keep
+ * the camera's sentinels so it falls back to the RAF's shooting values.
+ */
+fun Recipe.patchProfile(base: ByteArray): ByteArray {
+    val out = base.copyOf()
+    val bb = java.nio.ByteBuffer.wrap(out).order(java.nio.ByteOrder.LITTLE_ENDIAN)
+    val numParams = bb.getShort(0).toInt() and 0xFFFF
+    val off = out.size - numParams * 4
+    require(numParams in 8..64 && off >= 2) { "Unexpected profile layout (${out.size}B/$numParams params)" }
+    fun set(idx: Int, v: Int) = bb.putInt(off + idx * 4, v)
+
+    set(8, FILM_SIM_CODE.getValue(filmSimulation))
+    when (dynamicRange) {
+        DynamicRange.DR100 -> set(6, 100)
+        DynamicRange.DR200 -> set(6, 200)
+        DynamicRange.DR400 -> set(6, 400)
+        DynamicRange.AUTO -> Unit // keep the RAF's value
+    }
+    set(7, dRangePriority.ordinal)
+    val grain = when {
+        grainEffect == Strength.OFF -> 1
+        grainSize == GrainSize.SMALL -> if (grainEffect == Strength.WEAK) 2 else 3
+        else -> if (grainEffect == Strength.WEAK) 4 else 5
+    }
+    set(9, grain)
+    set(10, colorChromeEffect.ordinal + 1)
+    set(25, colorChromeFxBlue.ordinal + 1)
+    set(12, WB_CODE.getValue(whiteBalance))
+    if (whiteBalance == WhiteBalance.KELVIN && kelvin != null) set(15, kelvin)
+    set(13, wbShiftRed)
+    set(14, wbShiftBlue)
+    set(16, (highlight * 10).roundToInt())
+    set(17, (shadow * 10).roundToInt())
+    if (filmSimulation !in MONO_SIMS) set(18, color * 10)
+    set(19, sharpness * 10)
+    NR_ENCODE[noiseReduction]?.let { set(20, it) }
+    set(27, clarity * 10)
+    return out
 }

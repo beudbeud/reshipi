@@ -30,6 +30,7 @@ class FujiCamera private constructor(
         private const val TIMEOUT_MS = 8000
         // 16KB: bulkTransfer's safe maximum on all API levels / host controllers
         private const val READ_CHUNK = 16 * 1024
+        private const val SEND_CHUNK = 256 * 1024
         private const val PRESET_SLOT = 0xD18C
         private const val PRESET_NAME = 0xD18D
 
@@ -73,52 +74,67 @@ class FujiCamera private constructor(
 
     private fun send(type: Int, code: Int, txId: Int, params: IntArray, data: ByteArray) {
         val packet = packContainer(type, code, txId, params, data)
-        val sent = connection.bulkTransfer(epOut, packet, packet.size, TIMEOUT_MS)
-        if (sent != packet.size) {
-            throw IOException("USB write failed ($sent/${packet.size}) ${opName(code)} [$diag]")
+        var offset = 0
+        while (offset < packet.size) {
+            val len = minOf(SEND_CHUNK, packet.size - offset)
+            val sent = connection.bulkTransfer(epOut, packet, offset, len, TIMEOUT_MS)
+            if (sent != len) {
+                throw IOException("USB write failed ($sent/$len) ${opName(code)} [$diag]")
+            }
+            offset += len
         }
     }
 
-    private fun recv(opcode: Int): PtpContainer {
+    private fun recv(opcode: Int, timeoutMs: Int = TIMEOUT_MS): PtpContainer {
         val buf = ByteArray(READ_CHUNK)
         // The first read can hit a transient -1 while the camera settles; retry briefly.
         var n = -1
         for (attempt in 1..3) {
-            n = connection.bulkTransfer(epIn, buf, buf.size, TIMEOUT_MS)
+            n = connection.bulkTransfer(epIn, buf, buf.size, timeoutMs)
             if (n >= 12) break
             Thread.sleep(300)
         }
         if (n < 12) throw IOException("USB read failed ($n) ${opName(opcode)} [$diag]")
-        var data = buf.copyOf(n)
-        val total = containerLength(data)
-        while (data.size < total) {
-            val m = connection.bulkTransfer(epIn, buf, buf.size, TIMEOUT_MS)
+        val total = containerLength(buf)
+        val out = java.io.ByteArrayOutputStream(minOf(total, 64 shl 20))
+        out.write(buf, 0, n)
+        while (out.size() < total) {
+            val m = connection.bulkTransfer(epIn, buf, buf.size, timeoutMs)
             if (m <= 0) throw IOException("USB read continuation failed ($m) ${opName(opcode)} [$diag]")
-            data += buf.copyOf(m)
+            out.write(buf, 0, m)
         }
-        return unpackContainer(data)
+        return unpackContainer(out.toByteArray())
     }
 
     /** Command with optional incoming data phase. Returns (responseCode, data). */
-    private fun sendCommand(opcode: Int, params: IntArray = IntArray(0)): Pair<Int, ByteArray> {
+    private fun sendCommand(
+        opcode: Int,
+        params: IntArray = IntArray(0),
+        timeoutMs: Int = TIMEOUT_MS,
+    ): Pair<Int, ByteArray> {
         val txId = ++transactionId
         send(PtpContainerType.COMMAND, opcode, txId, params, ByteArray(0))
-        var resp = recv(opcode)
+        var resp = recv(opcode, timeoutMs)
         var data = ByteArray(0)
         if (resp.type == PtpContainerType.DATA) {
             data = resp.data
-            resp = recv(opcode)
+            resp = recv(opcode, timeoutMs)
         }
         if (resp.type != PtpContainerType.RESPONSE) throw IOException("Expected RESPONSE, got ${resp.type}")
         return resp.code to data
     }
 
     /** Command with outgoing data phase (SetDevicePropValue). Returns responseCode. */
-    private fun sendDataCommand(opcode: Int, params: IntArray, data: ByteArray): Int {
+    private fun sendDataCommand(
+        opcode: Int,
+        params: IntArray,
+        data: ByteArray,
+        timeoutMs: Int = TIMEOUT_MS,
+    ): Int {
         val txId = ++transactionId
         send(PtpContainerType.COMMAND, opcode, txId, params, ByteArray(0))
         send(PtpContainerType.DATA, opcode, txId, IntArray(0), data)
-        val resp = recv(opcode)
+        val resp = recv(opcode, timeoutMs)
         if (resp.type != PtpContainerType.RESPONSE) throw IOException("Expected RESPONSE, got ${resp.type}")
         return resp.code
     }
@@ -205,5 +221,74 @@ class FujiCamera private constructor(
         sessionOpen = false
         connection.releaseInterface(iface)
         connection.close()
+    }
+
+    // -- X RAW Studio protocol: in-camera RAW conversion --
+
+    /** Upload a RAF file to the camera (Fuji vendor two-step transfer). */
+    fun sendRaf(raf: ByteArray) {
+        DebugLog.log("sendRaf: ${raf.size / 1024 / 1024}MB")
+        val name = packPtpString("FUP_FILE.dat")
+        val info = java.nio.ByteBuffer.allocate(52 + name.size + 3)
+            .order(java.nio.ByteOrder.LITTLE_ENDIAN)
+        info.putInt(0)                    // StorageID
+        info.putShort(0xF802.toShort())   // ObjectFormat — must be 0xF802 for RAF
+        info.putShort(0)                  // ProtectionStatus
+        info.putInt(raf.size)             // CompressedSize
+        info.putShort(0)                  // ThumbFormat
+        info.putInt(0); info.putInt(0); info.putInt(0) // thumb size/w/h
+        info.putInt(0); info.putInt(0)    // image w/h
+        info.putInt(0)                    // bit depth
+        info.putInt(0)                    // parent
+        info.putShort(0)                  // association type
+        info.putInt(0); info.putInt(0)    // association desc, sequence
+        info.put(name)
+        info.put(byteArrayOf(0, 0, 0))    // capture/modification date, keywords
+        var code = sendDataCommand(PtpOp.FUJI_SEND_OBJECT_INFO, intArrayOf(0, 0, 0), info.array())
+        if (code != PtpResp.OK) throw IOException("SendObjectInfo failed: 0x${code.toString(16)}")
+        code = sendDataCommand(PtpOp.FUJI_SEND_OBJECT, IntArray(0), raf, timeoutMs = 60_000)
+        if (code != PtpResp.OK) throw IOException("SendObject failed: 0x${code.toString(16)}")
+    }
+
+    /** Current conversion profile (0xD185) — requires a RAF loaded first. */
+    fun getProfile(): ByteArray {
+        val (code, data) = sendCommand(PtpOp.GET_DEVICE_PROP_VALUE, intArrayOf(FujiProp.RAW_CONV_PROFILE))
+        if (code != PtpResp.OK || data.isEmpty()) {
+            throw IOException("getProfile failed: 0x${code.toString(16)} (${data.size} bytes)")
+        }
+        DebugLog.log("getProfile: ${data.size} bytes")
+        return data
+    }
+
+    fun setProfile(profile: ByteArray) {
+        val code = sendDataCommand(PtpOp.SET_DEVICE_PROP_VALUE, intArrayOf(FujiProp.RAW_CONV_PROFILE), profile)
+        if (code != PtpResp.OK) throw IOException("setProfile failed: 0x${code.toString(16)}")
+    }
+
+    fun triggerConversion() {
+        val code = sendDataCommand(PtpOp.SET_DEVICE_PROP_VALUE, intArrayOf(FujiProp.START_RAW_CONVERSION), packU16(0))
+        if (code != PtpResp.OK) throw IOException("StartRawConversion failed: 0x${code.toString(16)}")
+    }
+
+    /** Poll for the converted JPEG, download and delete it on the camera. */
+    fun waitForResult(timeoutMs: Long = 30_000): ByteArray {
+        val start = System.currentTimeMillis()
+        while (System.currentTimeMillis() - start < timeoutMs) {
+            val (code, data) = sendCommand(PtpOp.GET_OBJECT_HANDLES, intArrayOf(-1, 0, 0))
+            if (code != PtpResp.OK) throw IOException("GetObjectHandles failed: 0x${code.toString(16)}")
+            if (data.size >= 8) {
+                val bb = java.nio.ByteBuffer.wrap(data).order(java.nio.ByteOrder.LITTLE_ENDIAN)
+                if (bb.int > 0) {
+                    val handle = bb.int
+                    val (getCode, jpeg) = sendCommand(PtpOp.GET_OBJECT, intArrayOf(handle), timeoutMs = 60_000)
+                    if (getCode != PtpResp.OK) throw IOException("GetObject failed: 0x${getCode.toString(16)}")
+                    runCatching { sendCommand(PtpOp.DELETE_OBJECT, intArrayOf(handle)) }
+                    DebugLog.log("conversion result: ${jpeg.size / 1024}KB")
+                    return jpeg
+                }
+            }
+            Thread.sleep(1000)
+        }
+        throw IOException("Conversion timeout (${timeoutMs / 1000}s)")
     }
 }

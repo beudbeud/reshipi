@@ -10,8 +10,20 @@ object PtpOp {
     const val GET_DEVICE_INFO = 0x1001
     const val OPEN_SESSION = 0x1002
     const val CLOSE_SESSION = 0x1003
+    const val GET_OBJECT_HANDLES = 0x1007
+    const val GET_OBJECT = 0x1009
+    const val DELETE_OBJECT = 0x100B
     const val GET_DEVICE_PROP_VALUE = 0x1015
     const val SET_DEVICE_PROP_VALUE = 0x1016
+
+    // Fuji vendor ops (X RAW Studio protocol)
+    const val FUJI_SEND_OBJECT_INFO = 0x900C
+    const val FUJI_SEND_OBJECT = 0x900D
+}
+
+object FujiProp {
+    const val START_RAW_CONVERSION = 0xD183
+    const val RAW_CONV_PROFILE = 0xD185
 }
 
 object PtpResp {

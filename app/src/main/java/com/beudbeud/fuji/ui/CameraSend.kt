@@ -91,25 +91,32 @@ fun SendToCameraDialog(recipe: Recipe, onDismiss: () -> Unit) {
     )
 }
 
+/** Find the camera, get USB permission, open a PTP session. Throws with a user-facing message. */
+internal suspend fun connectFujiCamera(context: Context): FujiCamera {
+    val manager = context.getSystemService(Context.USB_SERVICE) as UsbManager
+    val device = FujiCamera.findDevice(manager)
+    if (device == null) {
+        DebugLog.log("no Fuji USB device (${manager.deviceList.size} devices attached)")
+        throw java.io.IOException(context.getString(R.string.camera_not_found))
+    }
+    if (!requestUsbPermission(context, manager, device)) {
+        DebugLog.log("USB permission denied")
+        throw java.io.IOException(context.getString(R.string.camera_permission_denied))
+    }
+    return withContext(Dispatchers.IO) {
+        FujiCamera.open(manager, device).also { it.openSession() }
+    }
+}
+
 /** Full send flow: find camera, get permission, write preset. Returns a status message. */
 private suspend fun sendRecipe(context: Context, recipe: Recipe, slot: Int): String {
     DebugLog.log("send \"${recipe.name}\" → C$slot")
-    val manager = context.getSystemService(Context.USB_SERVICE) as UsbManager
-    val device = FujiCamera.findDevice(manager)
-        ?: return context.getString(R.string.camera_not_found).also {
-            DebugLog.log("no Fuji USB device (${manager.deviceList.size} devices attached)")
-        }
-    if (!requestUsbPermission(context, manager, device)) {
-        DebugLog.log("USB permission denied")
-        return context.getString(R.string.camera_permission_denied)
-    }
-    return withContext(Dispatchers.IO) {
-        runCatching {
-            val camera = FujiCamera.open(manager, device)
+    return runCatching {
+        val camera = connectFujiCamera(context)
+        withContext(Dispatchers.IO) {
             try {
-                camera.openSession()
                 if (0xD18C !in camera.supportedProperties()) {
-                    return@runCatching context.getString(R.string.camera_no_presets)
+                    return@withContext context.getString(R.string.camera_no_presets)
                 }
                 val result = camera.writePreset(slot, recipe.name.take(25), recipe.toPresetProps())
                 when {
@@ -121,10 +128,10 @@ private suspend fun sendRecipe(context: Context, recipe: Recipe, slot: Int): Str
             } finally {
                 camera.close()
             }
-        }.getOrElse {
-            DebugLog.log("send failed: ${it.message ?: it.javaClass.simpleName}")
-            context.getString(R.string.camera_failed, it.message ?: it.javaClass.simpleName)
         }
+    }.getOrElse {
+        DebugLog.log("send failed: ${it.message ?: it.javaClass.simpleName}")
+        context.getString(R.string.camera_failed, it.message ?: it.javaClass.simpleName)
     }
 }
 

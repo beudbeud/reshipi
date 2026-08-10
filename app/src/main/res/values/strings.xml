@@ -69,6 +69,14 @@
     <string name="import_done">%1$d recipes imported</string>
     <string name="import_failed">Import failed: invalid file</string>
 
+    <string name="raf_preview">Preview on camera (RAF)</string>
+    <string name="raf_choose">Choose a RAF file</string>
+    <string name="raf_hint">Develops a RAW file in the camera with this recipe\'s settings, using the real Fujifilm engine. Camera USB mode: RAW CONV./BACKUP RESTORE.</string>
+    <string name="raf_uploading">Uploading RAF to camera…</string>
+    <string name="raf_developing">Developing in camera…</string>
+    <string name="raf_downloading">Downloading JPEG…</string>
+    <string name="raf_add_photo">Add as example photo</string>
+
     <string name="debug_logs">Debug logs</string>
     <string name="close">Close</string>
     <string name="clear">Clear</string>

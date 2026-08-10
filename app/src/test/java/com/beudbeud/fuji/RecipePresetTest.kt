@@ -2,6 +2,7 @@ package com.beudbeud.fuji
 
 import com.beudbeud.fuji.data.ptp.packPtpString
 import com.beudbeud.fuji.data.ptp.parsePtpString
+import com.beudbeud.fuji.data.ptp.patchProfile
 import com.beudbeud.fuji.data.ptp.toPresetProps
 import com.beudbeud.fuji.model.DynamicRange
 import com.beudbeud.fuji.model.FilmSimulation
@@ -62,6 +63,46 @@ class RecipePresetTest {
 
         val auto = Recipe(name = "A").toPresetProps()
         assertEquals(100, auto.value(0xD190))            // DR Auto → 100
+    }
+
+    @Test
+    fun patchProfileWritesNativeFields() {
+        val numParams = 28
+        val base = ByteArray(2 + numParams * 4)
+        base[0] = numParams.toByte() // u16 LE
+        val out = Recipe(
+            name = "X",
+            filmSimulation = FilmSimulation.CLASSIC_CHROME,
+            dynamicRange = DynamicRange.DR400,
+            whiteBalance = WhiteBalance.DAYLIGHT,
+            wbShiftRed = 2,
+            wbShiftBlue = -5,
+            highlight = 1.5,
+            shadow = -0.5,
+            color = 2,
+            sharpness = -1,
+            noiseReduction = 0,
+            grainEffect = Strength.WEAK,
+            grainSize = GrainSize.SMALL,
+            colorChromeEffect = Strength.STRONG,
+            clarity = 4,
+        ).patchProfile(base)
+        val bb = ByteBuffer.wrap(out).order(ByteOrder.LITTLE_ENDIAN)
+        fun f(idx: Int) = bb.getInt(2 + idx * 4)
+
+        assertEquals(0x0B, f(8))      // Classic Chrome
+        assertEquals(400, f(6))       // DR raw %
+        assertEquals(0x0004, f(12))   // WB Daylight
+        assertEquals(2, f(13))        // shift R
+        assertEquals(-5, f(14))       // shift B
+        assertEquals(15, f(16))       // highlight ×10
+        assertEquals(-5, f(17))       // shadow ×10
+        assertEquals(20, f(18))       // color ×10
+        assertEquals(-10, f(19))      // sharpness ×10
+        assertEquals(0x2000, f(20))   // NR 0 proprietary
+        assertEquals(2, f(9))         // grain weak small flat enum
+        assertEquals(3, f(10))        // CCE strong 1-indexed
+        assertEquals(40, f(27))       // clarity ×10
     }
 
     @Test
