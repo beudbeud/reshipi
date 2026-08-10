@@ -1,5 +1,7 @@
 package com.beudbeud.fuji.ui
 
+import android.content.Context
+import android.content.Intent
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -19,6 +21,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -36,6 +39,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -60,6 +64,7 @@ fun DetailScreen(
     var confirmDelete by remember { mutableStateOf(false) }
     var fullPhoto by remember { mutableStateOf<String?>(null) }
     val gen = recipe.generation
+    val context = LocalContext.current
 
     Scaffold(
         topBar = {
@@ -78,6 +83,9 @@ fun DetailScreen(
                             tint = if (recipe.favorite) MaterialTheme.colorScheme.primary
                             else MaterialTheme.colorScheme.onSurfaceVariant,
                         )
+                    }
+                    IconButton(onClick = { shareRecipe(context, recipe) }) {
+                        Icon(Icons.Default.Share, stringResource(R.string.share))
                     }
                     IconButton(onClick = onEdit) {
                         Icon(Icons.Default.Edit, stringResource(R.string.edit))
@@ -183,6 +191,54 @@ fun DetailScreen(
             )
         }
     }
+}
+
+/** Forum-style text block, only fields the recipe's generation actually has. */
+private fun shareRecipe(context: Context, recipe: Recipe) {
+    val gen = recipe.generation
+    fun s(res: Int) = context.getString(res)
+    val text = buildString {
+        appendLine(recipe.name)
+        appendLine("${s(R.string.generation)}: ${gen.label}")
+        appendLine("${s(R.string.film_simulation)}: ${recipe.filmSimulation.label}")
+        append("${s(R.string.white_balance)}: ${s(recipe.whiteBalance.labelRes)}")
+        if (recipe.whiteBalance == WhiteBalance.KELVIN) recipe.kelvin?.let { append(" ${it}K") }
+        appendLine(" R${formatSigned(recipe.wbShiftRed)} B${formatSigned(recipe.wbShiftBlue)}")
+        appendLine("${s(R.string.dynamic_range)}: ${recipe.dynamicRange.label}")
+        if (gen.hasDRangePriority) {
+            appendLine("${s(R.string.d_range_priority)}: ${s(recipe.dRangePriority.labelRes)}")
+        }
+        appendLine("${s(R.string.highlight)}: ${formatSigned(recipe.highlight)}")
+        appendLine("${s(R.string.shadow)}: ${formatSigned(recipe.shadow)}")
+        appendLine("${s(R.string.color)}: ${formatSigned(recipe.color)}")
+        appendLine("${s(R.string.sharpness)}: ${formatSigned(recipe.sharpness)}")
+        appendLine("${s(R.string.noise_reduction)}: ${formatSigned(recipe.noiseReduction)}")
+        if (gen.hasGrainEffect) {
+            append("${s(R.string.grain_effect)}: ${s(recipe.grainEffect.labelRes)}")
+            if (gen.hasGrainSize && recipe.grainEffect != Strength.OFF) {
+                append(" · ${s(recipe.grainSize.labelRes)}")
+            }
+            appendLine()
+        }
+        if (gen.hasColorChrome) {
+            appendLine("${s(R.string.color_chrome_effect)}: ${s(recipe.colorChromeEffect.labelRes)}")
+            appendLine("${s(R.string.color_chrome_fx_blue)}: ${s(recipe.colorChromeFxBlue.labelRes)}")
+        }
+        if (gen.hasClarity) {
+            appendLine("${s(R.string.clarity)}: ${formatSigned(recipe.clarity)}")
+        }
+        appendLine("${s(R.string.iso)}: ${recipe.iso}")
+        appendLine("${s(R.string.exposure_compensation)}: ${recipe.exposureCompensation}")
+        if (recipe.notes.isNotBlank()) {
+            appendLine()
+            appendLine(recipe.notes)
+        }
+    }
+    val intent = Intent(Intent.ACTION_SEND)
+        .setType("text/plain")
+        .putExtra(Intent.EXTRA_SUBJECT, recipe.name)
+        .putExtra(Intent.EXTRA_TEXT, text)
+    context.startActivity(Intent.createChooser(intent, null))
 }
 
 @Composable

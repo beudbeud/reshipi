@@ -46,6 +46,7 @@
     <string name="add_photo">Ajouter une photo</string>
     <string name="remove_photo">Retirer la photo</string>
 
+    <string name="share">Partager</string>
     <string name="export_json">Exporter en JSON</string>
     <string name="import_json">Importer un JSON</string>
     <string name="export_done">Recettes exportées</string>
