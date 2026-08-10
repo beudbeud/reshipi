@@ -108,6 +108,46 @@ class FujiStyleCardTest {
     }
 
     @Test
+    fun parsesFujiXWeeklyPageDialect() {
+        // Page dialect: bare film-sim line (restored by WebImport), "Sharpening",
+        // "Color Chrome Effect Blue"
+        val page = """
+            Classic Chrome
+            Dynamic Range: DR400
+            Highlight: -1
+            Shadow: -2
+            Color: +2
+            Noise Reduction: -4
+            Sharpening: -2
+            Clarity: -2
+            Grain Effect: Strong, Small
+            Color Chrome Effect: Strong
+            Color Chrome Effect Blue: Off
+            White Balance: 5500K, +0 Red & -7 Blue
+        """.trimIndent()
+        val fixed = com.beudbeud.fuji.data.WebImport.ensureFilmSimulationKey(page)
+        val r = FujiStyleCard.parse(fixed, tag = "fujixweekly")!!
+        assertEquals(FilmSimulation.CLASSIC_CHROME, r.filmSimulation)
+        assertEquals(-2, r.sharpness)
+        assertEquals(Strength.OFF, r.colorChromeFxBlue)
+        assertEquals(Strength.STRONG, r.colorChromeEffect)
+        assertEquals(WhiteBalance.KELVIN, r.whiteBalance)
+        assertEquals(5500, r.kelvin)
+        assertEquals(0, r.wbShiftRed)
+        assertEquals(-7, r.wbShiftBlue)
+    }
+
+    @Test
+    fun htmlToTextStripsMarkup() {
+        val text = com.beudbeud.fuji.data.WebImport.htmlToText(
+            "<ul><li>Classic Chrome</li><li>Dynamic Range: DR400</li>" +
+                "<li>White Balance: 5500K, +0 Red &amp; -7 Blue</li></ul>"
+        )
+        assertEquals(true, "Dynamic Range: DR400" in text)
+        assertEquals(true, "+0 Red & -7 Blue" in text)
+    }
+
+    @Test
     fun rejectsTextWithoutFilmSimulation() {
         assertNull(FujiStyleCard.parse("random text with no recipe"))
         assertNull(FujiStyleCard.parse("Film Simulation: SOMETHING UNKNOWN | Red: 1"))

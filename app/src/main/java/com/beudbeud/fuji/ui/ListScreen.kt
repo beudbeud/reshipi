@@ -61,6 +61,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
@@ -132,39 +133,55 @@ fun ListScreen(
         }
     }
 
+    // One entry point for images: Fuji EXIF first (out-of-camera JPEG),
+    // FujiStyle-card OCR as fallback.
     val photoImportLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.PickVisualMedia()
     ) { uri ->
         if (uri != null) {
-            val recipe = runCatching {
+            val fail: (Throwable?) -> Unit = {
+                scope.launch { snackbar.showSnackbar(context.getString(R.string.photo_no_recipe)) }
+            }
+            val fromExif = runCatching {
                 val bytes = context.contentResolver.openInputStream(uri)!!.use { it.readBytes() }
                 FujiExif.parse(bytes)
             }.getOrNull()
-            if (recipe == null) {
-                scope.launch { snackbar.showSnackbar(context.getString(R.string.photo_no_recipe)) }
+            if (fromExif != null) {
+                onCreateFromPhoto(fromExif.copy(photos = listOf(repo.addPhoto(uri))))
             } else {
-                onCreateFromPhoto(recipe.copy(photos = listOf(repo.addPhoto(uri))))
+                runCatching {
+                    TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
+                        .process(InputImage.fromFilePath(context, uri))
+                        .addOnSuccessListener { ocr ->
+                            val recipe = FujiStyleCard.parse(ocr.text)
+                            if (recipe == null) {
+                                fail(null)
+                            } else {
+                                // The card image doubles as the illustration photo
+                                onCreateFromPhoto(recipe.copy(photos = listOf(repo.addPhoto(uri))))
+                            }
+                        }
+                        .addOnFailureListener(fail)
+                }.onFailure(fail)
             }
         }
     }
 
-    val cardImportLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.PickVisualMedia()
-    ) { uri ->
-        if (uri != null) {
-            val fail: (Throwable?) -> Unit = {
-                scope.launch { snackbar.showSnackbar(context.getString(R.string.card_parse_failed)) }
+    val startQrScan = {
+        val options = GmsBarcodeScannerOptions.Builder()
+            .setBarcodeFormats(Barcode.FORMAT_QR_CODE)
+            .build()
+        GmsBarcodeScanning.getClient(context, options).startScan()
+            .addOnSuccessListener { barcode ->
+                val n = runCatching { repo.importJson(barcode.rawValue ?: "") }.getOrNull()
+                scope.launch {
+                    snackbar.showSnackbar(
+                        if (n != null) context.getString(R.string.import_done, n)
+                        else context.getString(R.string.import_failed)
+                    )
+                }
             }
-            runCatching {
-                TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
-                    .process(InputImage.fromFilePath(context, uri))
-                    .addOnSuccessListener { ocr ->
-                        val recipe = FujiStyleCard.parse(ocr.text)
-                        if (recipe == null) fail(null) else onCreateFromPhoto(recipe)
-                    }
-                    .addOnFailureListener(fail)
-            }.onFailure(fail)
-        }
+        Unit
     }
 
     val shown = recipes
@@ -276,6 +293,12 @@ fun ListScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = startQrScan) {
+                        Icon(
+                            painterResource(R.drawable.ic_qr_scan),
+                            stringResource(R.string.scan_qr),
+                        )
+                    }
                     IconButton(onClick = { searching = !searching; if (!searching) query = "" }) {
                         Icon(
                             if (searching) Icons.Default.Close else Icons.Default.Search,
@@ -301,15 +324,6 @@ fun ListScreen(
                                 onClick = { menuOpen = false; showTextImport = true },
                             )
                             DropdownMenuItem(
-                                text = { Text(stringResource(R.string.import_fujistyle)) },
-                                onClick = {
-                                    menuOpen = false
-                                    cardImportLauncher.launch(
-                                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                                    )
-                                },
-                            )
-                            DropdownMenuItem(
                                 text = { Text(stringResource(R.string.export_json)) },
                                 onClick = {
                                     menuOpen = false
@@ -324,27 +338,6 @@ fun ListScreen(
                                     importLauncher.launch(
                                         arrayOf("application/json", "application/octet-stream", "text/plain")
                                     )
-                                },
-                            )
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.scan_qr)) },
-                                onClick = {
-                                    menuOpen = false
-                                    val options = GmsBarcodeScannerOptions.Builder()
-                                        .setBarcodeFormats(Barcode.FORMAT_QR_CODE)
-                                        .build()
-                                    GmsBarcodeScanning.getClient(context, options).startScan()
-                                        .addOnSuccessListener { barcode ->
-                                            val n = runCatching {
-                                                repo.importJson(barcode.rawValue ?: "")
-                                            }.getOrNull()
-                                            scope.launch {
-                                                snackbar.showSnackbar(
-                                                    if (n != null) context.getString(R.string.import_done, n)
-                                                    else context.getString(R.string.import_failed)
-                                                )
-                                            }
-                                        }
                                 },
                             )
                             DropdownMenuItem(

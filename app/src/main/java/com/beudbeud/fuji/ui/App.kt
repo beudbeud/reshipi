@@ -10,9 +10,16 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import android.widget.Toast
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import com.beudbeud.fuji.R
+import com.beudbeud.fuji.data.FujiStyleCard
 import com.beudbeud.fuji.data.RecipeRepository
+import com.beudbeud.fuji.data.WebImport
 import com.beudbeud.fuji.model.FilmSimulation
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 // ponytail: nav state not saved across process death; rememberSaveable if it ever matters
 sealed interface Screen {
@@ -60,11 +67,29 @@ fun simAccent(sim: FilmSimulation): Color = when (sim) {
 }
 
 @Composable
-fun App(repo: RecipeRepository) {
+fun App(repo: RecipeRepository, sharedText: String? = null) {
     MaterialTheme(colorScheme = DarkColors) {
         var screen by remember { mutableStateOf<Screen>(Screen.Home) }
         // Pre-filled draft when creating a recipe from a photo's EXIF
         var photoDraft by remember { mutableStateOf<com.beudbeud.fuji.model.Recipe?>(null) }
+        val context = LocalContext.current
+
+        // Shared from another app: a recipe page URL or pasted recipe text
+        LaunchedEffect(sharedText) {
+            if (sharedText != null) {
+                val recipe = withContext(Dispatchers.IO) {
+                    val url = Regex("https?://\\S+").find(sharedText)?.value
+                    if (url != null) WebImport.fetch(url, repo)
+                    else FujiStyleCard.parse(sharedText, tag = "import")
+                }
+                if (recipe != null) {
+                    photoDraft = recipe
+                    screen = Screen.Edit(null)
+                } else {
+                    Toast.makeText(context, R.string.card_parse_failed, Toast.LENGTH_LONG).show()
+                }
+            }
+        }
         BackHandler(screen != Screen.Home) {
             screen = when (val s = screen) {
                 is Screen.Edit -> if (s.id != null) Screen.Detail(s.id) else Screen.Home

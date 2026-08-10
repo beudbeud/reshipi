@@ -3,15 +3,14 @@
     <string name="app_name">Reshipi</string>
 
     <string name="new_recipe">Nouvelle recette</string>
-    <string name="new_from_photo">Nouvelle recette depuis une photo</string>
-    <string name="import_fujistyle">Importer une carte FujiStyle</string>
+    <string name="new_from_photo">Nouvelle recette depuis une image</string>
     <string name="import_text">Importer depuis du texte</string>
     <string name="paste_recipe">Colle une recette (un réglage par ligne ou format FujiStyle)</string>
     <string name="create">Créer</string>
     <string name="card_parse_failed">Impossible de lire une recette dans cette image</string>
     <string name="tags_label">Tags (séparés par des virgules)</string>
     <string name="tags">Tags</string>
-    <string name="photo_no_recipe">Aucun réglage Fujifilm trouvé dans cette photo. Seuls les JPEG non retouchés sortis du boîtier fonctionnent.</string>
+    <string name="photo_no_recipe">Aucune recette trouvée dans cette image (ni EXIF Fujifilm, ni carte de recette lisible).</string>
     <string name="edit_recipe">Modifier la recette</string>
     <string name="save">Enregistrer</string>
     <string name="cancel">Annuler</string>

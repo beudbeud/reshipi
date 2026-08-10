@@ -26,7 +26,7 @@ object FujiStyleCard {
         fun num(keyPattern: String): Double? =
             field(keyPattern)?.let { Regex("-?\\d+(\\.\\d+)?").find(it)?.value?.toDoubleOrNull() }
 
-        val sim = field("Film\\s+Simulation")?.let { filmSim(it) } ?: return null
+        val sim = field("Film\\s+Simulation")?.let { detectSim(it) } ?: return null
 
         val wbRaw = (field("White\\s+Balance") ?: "").uppercase()
         val kelvinMatch = Regex("(\\d{4,5})\\s*K").find(wbRaw)?.groupValues?.get(1)?.toIntOrNull()
@@ -79,7 +79,7 @@ object FujiStyleCard {
             highlight = (num("Highlight") ?: 0.0).halfSteps().coerceIn(-2.0, 4.0),
             shadow = (num("Shadow") ?: 0.0).halfSteps().coerceIn(-2.0, 4.0),
             color = (num("Colou?r")?.roundToInt() ?: 0).coerceIn(-4, 4),
-            sharpness = (num("Sharpness")?.roundToInt() ?: 0).coerceIn(-4, 4),
+            sharpness = ((num("Sharpness") ?: num("Sharpening"))?.roundToInt() ?: 0).coerceIn(-4, 4),
             noiseReduction = (num("High\\s+ISO\\s+NR")?.roundToInt() ?: 0).coerceIn(-4, 4),
             // Combined form "Grain Effect: Strong, Small" or split Roughness/Size fields
             grainEffect = strength(
@@ -90,7 +90,8 @@ object FujiStyleCard {
                     .contains("large", true)
             ) GrainSize.LARGE else GrainSize.SMALL,
             colorChromeEffect = strength(field("Color\\s+Chrome\\s+Effect")),
-            colorChromeFxBlue = strength(field("Color\\s+(?:Chrome\\s+)?FX\\s+Blue")),
+            // "Color FX Blue" (FujiStyle) or "Color Chrome Effect Blue" (Fuji X Weekly)
+            colorChromeFxBlue = strength(field("Color\\s+(?:Chrome\\s+)?(?:FX|Effect)\\s+Blue")),
             clarity = (num("Clarity")?.roundToInt() ?: 0).coerceIn(-5, 5),
             // ISO is the only free-text field: when empty at the end of the block,
             // the regex can swallow the "Made with FUJISTYLE APP" footer line.
@@ -111,7 +112,8 @@ object FujiStyleCard {
         else -> Strength.OFF // None / Off
     }
 
-    private fun filmSim(raw: String): FilmSimulation? {
+    /** Recognizes a film simulation name inside free text (used for bare-line detection too). */
+    internal fun detectSim(raw: String): FilmSimulation? {
         val n = raw.uppercase()
         val filter = Regex("(ACROS|MONOCHROME)\\s*\\+?\\s*(YE|R|G)\\b").find(n)?.groupValues?.get(2)
         return when {
