@@ -2,6 +2,9 @@ package com.beudbeud.fuji.ui
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Matrix
+import android.media.ExifInterface
+import java.io.ByteArrayInputStream
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
@@ -165,5 +168,26 @@ private fun decodeSampled(jpeg: ByteArray, maxDim: Int): Bitmap? {
     while (bounds.outWidth / (sample * 2) >= maxDim || bounds.outHeight / (sample * 2) >= maxDim) {
         sample *= 2
     }
-    return BitmapFactory.decodeByteArray(jpeg, 0, jpeg.size, BitmapFactory.Options().apply { inSampleSize = sample })
+    val bitmap = BitmapFactory.decodeByteArray(
+        jpeg, 0, jpeg.size, BitmapFactory.Options().apply { inSampleSize = sample },
+    ) ?: return null
+    // The camera records the shooting orientation in EXIF rather than rotating
+    // the pixels; BitmapFactory ignores it, so a portrait frame shows on its side.
+    val degrees = exifRotation(jpeg)
+    if (degrees == 0f) return bitmap
+    return Bitmap.createBitmap(
+        bitmap, 0, 0, bitmap.width, bitmap.height,
+        Matrix().apply { postRotate(degrees) }, true,
+    )
 }
+
+private fun exifRotation(jpeg: ByteArray): Float = runCatching {
+    when (ExifInterface(ByteArrayInputStream(jpeg)).getAttributeInt(
+        ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL,
+    )) {
+        ExifInterface.ORIENTATION_ROTATE_90 -> 90f
+        ExifInterface.ORIENTATION_ROTATE_180 -> 180f
+        ExifInterface.ORIENTATION_ROTATE_270 -> 270f
+        else -> 0f
+    }
+}.getOrDefault(0f)
