@@ -13,8 +13,8 @@ android {
         applicationId = "com.beudbeud.fuji"
         minSdk = 26
         targetSdk = 35
-        versionCode = 25
-        versionName = "0.9.5"
+        versionCode = 26
+        versionName = "0.9.6"
     }
 
     buildFeatures {

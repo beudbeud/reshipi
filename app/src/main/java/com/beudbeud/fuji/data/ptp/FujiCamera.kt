@@ -180,6 +180,23 @@ class FujiCamera private constructor(
     class PresetWriteResult(val ok: Boolean, val warnings: List<String>)
 
     /**
+     * True when a read-back differs from what we wrote only because the camera
+     * stored an equivalent encoding of the same setting.
+     *
+     * Grain (0xD195) is the known case: the reference encoding is 1=Off,
+     * 2=WeakSmall, 3=StrongSmall, 4=WeakLarge, 5=StrongLarge, but the X-T30 III
+     * keeps the size dimension while off and normalizes a written 1 to 6
+     * (off, small) or 7 (off, large) depending on the slot's current size. The
+     * stored setting is still "off", so this is not a failed write.
+     */
+    private fun isNormalization(propId: Int, wrote: ByteArray, read: ByteArray): Boolean {
+        if (propId != 0xD195 || wrote.size != 2 || read.size != 2) return false
+        fun u16(b: ByteArray) = (b[0].toInt() and 0xFF) or ((b[1].toInt() and 0xFF) shl 8)
+        val grainOff = setOf(1, 6, 7)
+        return u16(wrote) in grainOff && u16(read) in grainOff
+    }
+
+    /**
      * Write a complete preset to a camera slot (1-7) with read-back verification.
      * Slot selection or name write failure is fatal; individual property
      * rejections and verify mismatches are reported as warnings.
@@ -208,6 +225,7 @@ class FujiCamera private constructor(
         for ((id, bytes) in props) {
             if (id !in written) continue
             val readBack = readProp(id) ?: continue
+            if (isNormalization(id, bytes, readBack)) continue
             if (readBack.size == bytes.size && !readBack.contentEquals(bytes)) {
                 warnings += "0x${id.toString(16).uppercase()}: verify mismatch " +
                     "(wrote ${hex(bytes)}, read ${hex(readBack)})"
