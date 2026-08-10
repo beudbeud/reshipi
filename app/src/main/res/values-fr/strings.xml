@@ -131,4 +131,6 @@
     <string name="sort_simulation">Par pellicule</string>
     <string name="filter_all">Toutes</string>
     <string name="raf_unsupported">Ce boîtier ne déclare pas la conversion RAW interne.</string>
+    <string name="raf_not_a_raf">Ce fichier n\'est pas un RAF.</string>
+    <string name="raf_wrong_camera">Ce RAF vient d\'un %1$s. La conversion interne n\'accepte que les fichiers du boîtier connecté (%2$s).</string>
 </resources>

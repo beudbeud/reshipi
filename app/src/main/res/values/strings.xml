@@ -131,4 +131,6 @@
     <string name="sort_simulation">By film</string>
     <string name="filter_all">All</string>
     <string name="raf_unsupported">This camera does not advertise in-camera RAW conversion.</string>
+    <string name="raf_not_a_raf">That file is not a RAF.</string>
+    <string name="raf_wrong_camera">This RAF was shot on a %1$s. In-camera conversion only accepts files from the connected body (%2$s).</string>
 </resources>

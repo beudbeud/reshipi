@@ -28,6 +28,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.beudbeud.fuji.R
 import com.beudbeud.fuji.data.DebugLog
+import com.beudbeud.fuji.data.RafFile
 import com.beudbeud.fuji.data.RecipeRepository
 import com.beudbeud.fuji.data.ptp.FujiProp
 import com.beudbeud.fuji.data.ptp.patchProfile
@@ -70,6 +71,19 @@ fun RafPreviewDialog(recipe: Recipe, repo: RecipeRepository, onDismiss: () -> Un
                         // no amount of retrying will produce a conversion.
                         if (FujiProp.RAW_CONV_PROFILE !in camera.supportedProperties()) {
                             throw java.io.IOException(context.getString(R.string.raf_unsupported))
+                        }
+                        // In-camera conversion only accepts a file this body shot.
+                        // Checking here turns a bare 0x2002 later into a real answer.
+                        val rafModel = RafFile.cameraModel(raf)
+                        val body = camera.modelName()
+                        DebugLog.log("RAF from \"$rafModel\", camera is \"$body\"")
+                        if (rafModel == null) {
+                            throw java.io.IOException(context.getString(R.string.raf_not_a_raf))
+                        }
+                        if (!rafModel.equals(body, ignoreCase = true)) {
+                            throw java.io.IOException(
+                                context.getString(R.string.raf_wrong_camera, rafModel, body)
+                            )
                         }
                         camera.sendRaf(raf)
                         status = context.getString(R.string.raf_developing)
