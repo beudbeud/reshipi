@@ -204,11 +204,13 @@ class FujiCamera private constructor(
             val readBack = parsePtpString(it)
             if (readBack != name) warnings += "Name verify: wrote \"$name\", read \"$readBack\""
         }
+        fun hex(b: ByteArray) = b.joinToString(" ") { "%02x".format(it) }
         for ((id, bytes) in props) {
             if (id !in written) continue
             val readBack = readProp(id) ?: continue
             if (readBack.size == bytes.size && !readBack.contentEquals(bytes)) {
-                warnings += "0x${id.toString(16).uppercase()}: verify mismatch"
+                warnings += "0x${id.toString(16).uppercase()}: verify mismatch " +
+                    "(wrote ${hex(bytes)}, read ${hex(readBack)})"
             }
         }
         DebugLog.log("writePreset C$slot \"$name\": ${written.size}/${props.size} written, ${warnings.size} warnings")
