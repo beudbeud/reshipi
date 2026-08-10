@@ -5,6 +5,8 @@ import android.net.Uri
 import com.beudbeud.fuji.data.CardCrop
 import com.beudbeud.fuji.data.FujiExif
 import com.beudbeud.fuji.data.FujiStyleCard
+import com.beudbeud.fuji.data.OcrBlock
+import com.beudbeud.fuji.data.OcrText
 import com.beudbeud.fuji.data.RecipeRepository
 import com.beudbeud.fuji.model.Recipe
 import com.google.mlkit.vision.common.InputImage
@@ -31,10 +33,16 @@ internal fun importRecipeImage(
         return
     }
     runCatching {
+        val image = InputImage.fromFilePath(context, uri)
         TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
-            .process(InputImage.fromFilePath(context, uri))
+            .process(image)
             .addOnSuccessListener { ocr ->
-                val recipe = FujiStyleCard.parse(ocr.text)
+                // Cards put labels and values in two columns; rebuild the pairs
+                // from the boxes rather than trusting the flattened reading order.
+                val blocks = ocr.textBlocks.mapNotNull { b ->
+                    b.boundingBox?.let { OcrBlock(b.text, it.left, it.top, it.right, it.bottom) }
+                }
+                val recipe = FujiStyleCard.parse(OcrText.prepare(blocks, image.width, ocr.text))
                 if (recipe == null) {
                     onResult(null)
                 } else {

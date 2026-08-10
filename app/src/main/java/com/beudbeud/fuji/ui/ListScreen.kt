@@ -68,12 +68,8 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import com.beudbeud.fuji.R
 import com.beudbeud.fuji.data.DebugLog
-import com.beudbeud.fuji.data.FujiExif
 import com.beudbeud.fuji.data.FujiStyleCard
 import com.beudbeud.fuji.data.RecipeRepository
-import com.google.mlkit.vision.common.InputImage
-import com.google.mlkit.vision.text.TextRecognition
-import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import com.beudbeud.fuji.model.Recipe
 import com.beudbeud.fuji.model.cameraLabel
 import com.google.mlkit.vision.barcode.common.Barcode
