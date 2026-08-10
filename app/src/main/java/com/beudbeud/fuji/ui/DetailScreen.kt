@@ -2,6 +2,7 @@ package com.beudbeud.fuji.ui
 
 import android.content.Context
 import android.content.Intent
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -50,6 +51,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -173,7 +175,7 @@ fun DetailScreen(
                     .padding(vertical = 10.dp)
                     .horizontalScroll(rememberScrollState()),
             ) {
-                InfoChip(recipe.filmSimulation.label, dot = simAccent(recipe.filmSimulation))
+                InfoChip(recipe.filmSimulation.label, badge = filmBadge(recipe.filmSimulation))
                 InfoChip(recipe.cameraLabel)
                 recipe.tags.forEach { InfoChip("#$it") }
             }
@@ -335,7 +337,7 @@ private fun DetailRow(label: String, value: String) {
 }
 
 @Composable
-private fun InfoChip(text: String, dot: androidx.compose.ui.graphics.Color? = null) {
+private fun InfoChip(text: String, badge: Int? = null) {
     Row(
         verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
         modifier = Modifier
@@ -343,13 +345,11 @@ private fun InfoChip(text: String, dot: androidx.compose.ui.graphics.Color? = nu
             .background(MaterialTheme.colorScheme.surfaceVariant)
             .padding(horizontal = 12.dp, vertical = 6.dp),
     ) {
-        if (dot != null) {
-            Box(
-                Modifier
-                    .padding(end = 6.dp)
-                    .size(8.dp)
-                    .clip(RoundedCornerShape(50))
-                    .background(dot)
+        if (badge != null) {
+            Image(
+                painter = painterResource(badge),
+                contentDescription = null,
+                modifier = Modifier.padding(end = 6.dp).size(18.dp).clip(RoundedCornerShape(4.dp)),
             )
         }
         Text(text, style = MaterialTheme.typography.labelMedium)

@@ -1,5 +1,6 @@
 package com.beudbeud.fuji.ui
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -46,6 +47,9 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -209,13 +213,26 @@ private fun SlotCard(
                     Modifier
                         .size(40.dp)
                         .clip(RoundedCornerShape(10.dp))
-                        .background(
-                            recipe?.let { simAccent(it.filmSimulation) }
-                                ?: MaterialTheme.colorScheme.surfaceVariant
-                        ),
+                        .background(MaterialTheme.colorScheme.surfaceVariant),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text("C$slot", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+                    // The badge identifies the simulation at a glance; the slot
+                    // number stays readable on a scrim over it.
+                    recipe?.let {
+                        Image(
+                            painter = painterResource(filmBadge(it.filmSimulation)),
+                            contentDescription = null,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                        Box(Modifier.fillMaxSize().background(Color(0x99000000)))
+                    }
+                    Text(
+                        "C$slot",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = if (recipe != null) Color.White else MaterialTheme.colorScheme.onSurface,
+                    )
                 }
                 Column(Modifier.weight(1f).padding(start = 12.dp)) {
                     Text(

@@ -50,22 +50,34 @@ private val DarkColors = darkColorScheme(
     outlineVariant = Color(0xFF2A2C2F),
 )
 
-/** Accent color per film simulation — used for placeholder covers and chips. */
-fun simAccent(sim: FilmSimulation): Color = when (sim) {
-    FilmSimulation.PROVIA -> Color(0xFF5B7A99)
-    FilmSimulation.VELVIA -> Color(0xFFB35340)
-    FilmSimulation.ASTIA -> Color(0xFFB08BA0)
-    FilmSimulation.CLASSIC_CHROME -> Color(0xFF6E7F72)
-    FilmSimulation.CLASSIC_NEG -> Color(0xFFB08D57)
-    FilmSimulation.NOSTALGIC_NEG -> Color(0xFFC0996A)
-    FilmSimulation.REALA_ACE -> Color(0xFF7A9E7E)
-    FilmSimulation.PRO_NEG_STD -> Color(0xFF9A8F86)
-    FilmSimulation.PRO_NEG_HI -> Color(0xFF8A7F76)
-    FilmSimulation.ETERNA -> Color(0xFF5C6B7A)
-    FilmSimulation.ETERNA_BLEACH_BYPASS -> Color(0xFF8C93A0)
-    FilmSimulation.SEPIA -> Color(0xFF9C7B52)
-    else -> Color(0xFF85878B) // Acros & Monochrome family
+/**
+ * Film-box badge per simulation. Artwork from FujiSync (MIT) — see THIRD_PARTY.md.
+ * Every FilmSimulation has one, so this is exhaustive on purpose: adding a
+ * simulation without its badge fails to compile.
+ */
+fun filmBadge(sim: FilmSimulation): Int = when (sim) {
+    FilmSimulation.PROVIA -> R.drawable.film_sim_badge_provia_standard
+    FilmSimulation.VELVIA -> R.drawable.film_sim_badge_velvia_vivid
+    FilmSimulation.ASTIA -> R.drawable.film_sim_badge_astia_soft
+    FilmSimulation.CLASSIC_CHROME -> R.drawable.film_sim_badge_classic_chrome
+    FilmSimulation.CLASSIC_NEG -> R.drawable.film_sim_badge_classic_negative
+    FilmSimulation.NOSTALGIC_NEG -> R.drawable.film_sim_badge_nostalgic_negative
+    FilmSimulation.REALA_ACE -> R.drawable.film_sim_badge_reala_ace
+    FilmSimulation.PRO_NEG_HI -> R.drawable.film_sim_badge_pro_neg_hi
+    FilmSimulation.PRO_NEG_STD -> R.drawable.film_sim_badge_pro_neg_standard
+    FilmSimulation.ETERNA -> R.drawable.film_sim_badge_eterna_cinema
+    FilmSimulation.ETERNA_BLEACH_BYPASS -> R.drawable.film_sim_badge_eterna_bleach_bypass
+    FilmSimulation.ACROS -> R.drawable.film_sim_badge_acros
+    FilmSimulation.ACROS_YE -> R.drawable.film_sim_badge_acros_yellow_filter
+    FilmSimulation.ACROS_R -> R.drawable.film_sim_badge_acros_red_filter
+    FilmSimulation.ACROS_G -> R.drawable.film_sim_badge_acros_green_filter
+    FilmSimulation.MONOCHROME -> R.drawable.film_sim_badge_monochrome
+    FilmSimulation.MONOCHROME_YE -> R.drawable.film_sim_badge_monochrome_yellow_filter
+    FilmSimulation.MONOCHROME_R -> R.drawable.film_sim_badge_monochrome_red_filter
+    FilmSimulation.MONOCHROME_G -> R.drawable.film_sim_badge_monochrome_green_filter
+    FilmSimulation.SEPIA -> R.drawable.film_sim_badge_sepia
 }
+
 
 @Composable
 fun App(repo: RecipeRepository, sharedText: String? = null, sharedImage: android.net.Uri? = null) {

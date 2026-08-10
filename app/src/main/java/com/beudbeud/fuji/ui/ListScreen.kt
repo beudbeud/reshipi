@@ -4,6 +4,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import android.content.Intent
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -425,7 +426,6 @@ fun ListScreen(
 /** Photo-first grid card: cover photo (or a film-sim tinted placeholder), scrim, overlay info. */
 @Composable
 private fun RecipeCard(r: Recipe, repo: RecipeRepository, onOpen: (String) -> Unit) {
-    val accent = simAccent(r.filmSimulation)
     Card(
         onClick = { onOpen(r.id) },
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
@@ -440,22 +440,14 @@ private fun RecipeCard(r: Recipe, repo: RecipeRepository, onOpen: (String) -> Un
                     modifier = Modifier.fillMaxSize(),
                 )
             } else {
-                Box(
-                    Modifier
-                        .fillMaxSize()
-                        .background(
-                            Brush.linearGradient(
-                                listOf(accent.copy(alpha = 0.50f), accent.copy(alpha = 0.15f))
-                            )
-                        ),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        r.filmSimulation.label,
-                        style = MaterialTheme.typography.titleSmall,
-                        color = Color.White.copy(alpha = 0.55f),
-                    )
-                }
+                // No photo: the film-box badge stands in, which reads far better
+                // than the simulation name on a flat gradient.
+                Image(
+                    painter = painterResource(filmBadge(r.filmSimulation)),
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                )
             }
             Box(
                 Modifier
