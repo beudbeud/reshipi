@@ -15,8 +15,8 @@ object WebImport {
     fun fetch(url: String, repo: RecipeRepository): Recipe? = runCatching {
         DebugLog.log("web import: $url")
         val html = get(url) ?: return null
-        val recipe = FujiStyleCard.parse(ensureFilmSimulationKey(htmlToText(html)), tag = "fujixweekly")
-            ?: return null
+        val text = ensureFilmSimulationKey(pairKeyValueLines(htmlToText(html)))
+        val recipe = FujiStyleCard.parse(text, tag = "fujixweekly") ?: return null
 
         val title = Regex("property=\"og:title\" content=\"([^\"]+)\"").find(html)?.groupValues?.get(1)
         val name = title?.substringAfterLast("Recipe:")?.trim()?.takeIf { it.isNotBlank() }
@@ -68,6 +68,58 @@ object WebImport {
             .replace("&#8211;", "-").replace("&#8217;", "'")
             .replace("&#8220;", "\"").replace("&#8221;", "\"")
             .replace("&lt;", "<").replace("&gt;", ">").replace("&quot;", "\"")
+    }
+
+    // Setting names that some sites put on their own line (heading) with the
+    // value on the following line — reassembled into "Key: value".
+    private val KNOWN_KEYS = listOf(
+        "grain effect / grain size", "color chrome effect / fx blue", "wb / color temperature",
+        "film simulation", "dynamic range", "white balance shift", "white balance",
+        "highlight", "shadow", "colour", "color chrome effect", "color chrome fx blue",
+        "color", "sharpness", "sharpening", "noise reduction", "high iso nr",
+        "grain effect", "grain size", "clarity", "iso", "exposure compensation",
+        "dr priority", "d-range priority", "monochromatic color",
+    )
+
+    /**
+     * Generic pass for heading/value layouts (Elementor cards, tables): when a
+     * line is exactly a known setting name and the next non-blank line looks
+     * like a value, join them as "Key: value". Combined keys ("Grain Effect /
+     * Grain Size: Strong / Small") are split into the parser's vocabulary.
+     */
+    internal fun pairKeyValueLines(text: String): String {
+        val lines = text.lines().map { it.trim() }
+        val out = StringBuilder()
+        var i = 0
+        while (i < lines.size) {
+            val line = lines[i]
+            val key = if (':' !in line) KNOWN_KEYS.firstOrNull { line.equals(it, true) } else null
+            var j = i + 1
+            while (j < lines.size && lines[j].isBlank()) j++
+            val value = lines.getOrNull(j)
+            if (key != null && value != null && value.length < 60 && ':' !in value &&
+                KNOWN_KEYS.none { value.equals(it, true) }
+            ) {
+                val parts = value.split('/').map(String::trim)
+                when (key) {
+                    "grain effect / grain size" -> {
+                        out.appendLine("Grain Effect: ${parts.getOrElse(0) { "" }}")
+                        out.appendLine("Grain Effect - Size: ${parts.getOrElse(1) { "" }}")
+                    }
+                    "color chrome effect / fx blue" -> {
+                        out.appendLine("Color Chrome Effect: ${parts.getOrElse(0) { "" }}")
+                        out.appendLine("Color FX Blue: ${parts.getOrElse(1) { "" }}")
+                    }
+                    "wb / color temperature" -> out.appendLine("White Balance: $value")
+                    else -> out.appendLine("$line: $value")
+                }
+                i = j + 1
+            } else {
+                out.appendLine(line)
+                i++
+            }
+        }
+        return out.toString()
     }
 
     /**

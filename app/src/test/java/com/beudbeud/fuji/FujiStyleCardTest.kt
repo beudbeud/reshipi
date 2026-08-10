@@ -221,6 +221,57 @@ class FujiStyleCardTest {
     }
 
     @Test
+    fun parsesHeadingValueLayout() {
+        // Elementor-style pages: key on one line, value on the next
+        val stripped = """
+            Kodak Gold Film Recipe Custom Film Simulation Settings
+            Film Simulation
+            Classic Negative
+            Highlight
+            +1
+            Shadow
+            0
+            Color
+            +2
+            Sharpness
+            -1
+            Noise Reduction
+            -4
+            Grain Effect / Grain Size
+            Strong / Small
+            Color Chrome Effect / FX Blue
+            Off / Off
+            WB / Color Temperature
+            Daylight, Red 4, Blue -4
+            Exposure Compensation
+            from -2/3 to +2/3
+            ISO
+            Auto up to ISO 6400
+            Clarity
+            0
+            Dynamic Range
+            DR200
+        """.trimIndent()
+        val paired = com.beudbeud.fuji.data.WebImport.pairKeyValueLines(stripped)
+        val r = FujiStyleCard.parse(paired, tag = "web")!!
+        assertEquals(FilmSimulation.CLASSIC_NEG, r.filmSimulation)
+        assertEquals(1.0, r.highlight, 0.0)
+        assertEquals(2, r.color)
+        assertEquals(-1, r.sharpness)
+        assertEquals(-4, r.noiseReduction)
+        assertEquals(Strength.STRONG, r.grainEffect)
+        assertEquals(GrainSize.SMALL, r.grainSize)
+        assertEquals(Strength.OFF, r.colorChromeEffect)
+        assertEquals(Strength.OFF, r.colorChromeFxBlue)
+        assertEquals(WhiteBalance.DAYLIGHT, r.whiteBalance)
+        assertEquals(4, r.wbShiftRed)
+        assertEquals(-4, r.wbShiftBlue)
+        assertEquals(DynamicRange.DR200, r.dynamicRange)
+        assertEquals("Auto up to ISO 6400", r.iso)
+        assertEquals("from -2/3 to +2/3", r.exposureCompensation)
+    }
+
+    @Test
     fun rejectsTextWithoutFilmSimulation() {
         assertNull(FujiStyleCard.parse("random text with no recipe"))
         assertNull(FujiStyleCard.parse("Film Simulation: SOMETHING UNKNOWN | Red: 1"))
