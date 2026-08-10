@@ -68,8 +68,12 @@
     <string name="camera_not_found">No Fujifilm camera found. Connect it via USB and set its USB mode to RAW CONV./BACKUP RESTORE.</string>
     <string name="camera_permission_denied">USB permission denied</string>
     <string name="camera_no_presets">This camera does not support preset editing over USB</string>
-    <string name="export_json">Export JSON</string>
-    <string name="import_json">Import JSON</string>
+    <string name="import_from_camera">Import from camera</string>
+    <string name="camera_reading">Reading camera presets…</string>
+    <string name="camera_no_slots">No configured presets found on the camera (C1–C7 are empty).</string>
+    <string name="import_selected">Import (%1$d)</string>
+    <string name="export_json">Export backup (ZIP)</string>
+    <string name="import_json">Import backup</string>
     <string name="export_done">Recipes exported</string>
     <string name="export_failed">Export failed</string>
     <string name="import_done">%1$d recipes imported</string>

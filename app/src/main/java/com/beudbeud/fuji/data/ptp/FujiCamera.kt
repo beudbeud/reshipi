@@ -179,6 +179,47 @@ class FujiCamera private constructor(
 
     class PresetWriteResult(val ok: Boolean, val warnings: List<String>)
 
+    /** One custom-preset slot as stored on the camera. */
+    class CameraPreset(val slot: Int, val name: String, val props: Map<Int, ByteArray>)
+
+    /** Camera model reported in PTP DeviceInfo, e.g. "X-T30 III". */
+    fun modelName(): String {
+        val (code, data) = sendCommand(PtpOp.GET_DEVICE_INFO)
+        if (code != PtpResp.OK) return ""
+        val r = PtpReader(data)
+        r.u16(); r.u32(); r.u16(); r.str(); r.u16()
+        r.u16array(); r.u16array(); r.u16array(); r.u16array(); r.u16array()
+        r.str() // manufacturer
+        return r.str() // model
+    }
+
+    /**
+     * Read the camera's custom-preset slots (C1-C7). Selecting a slot and
+     * reading its properties is the same mechanism used for writing, run in
+     * reverse; the originally selected slot is restored afterwards.
+     */
+    fun readPresets(slots: IntRange = 1..7): List<CameraPreset> {
+        val original = readProp(PRESET_SLOT)?.let {
+            java.nio.ByteBuffer.wrap(it).order(java.nio.ByteOrder.LITTLE_ENDIAN).short.toInt()
+        } ?: 1
+        val presets = mutableListOf<CameraPreset>()
+        for (slot in slots) {
+            if (!writeProp(PRESET_SLOT, packU16(slot))) {
+                DebugLog.log("readPresets: cannot select slot C$slot")
+                continue
+            }
+            Thread.sleep(100)
+            val name = readProp(PRESET_NAME)?.let { parsePtpString(it) }.orEmpty()
+            val props = buildMap {
+                for (id in 0xD18E..0xD1A5) readProp(id)?.let { put(id, it) }
+            }
+            presets += CameraPreset(slot, name, props)
+            DebugLog.log("readPresets: C$slot \"$name\" (${props.size} properties)")
+        }
+        runCatching { writeProp(PRESET_SLOT, packU16(original)) }
+        return presets
+    }
+
     /**
      * True when a read-back differs from what we wrote only because the camera
      * stored an equivalent encoding of the same setting.

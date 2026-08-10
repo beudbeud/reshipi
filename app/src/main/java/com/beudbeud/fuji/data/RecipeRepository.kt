@@ -10,7 +10,12 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.io.File
+import java.io.InputStream
+import java.io.OutputStream
 import java.util.UUID
+import java.util.zip.ZipEntry
+import java.util.zip.ZipInputStream
+import java.util.zip.ZipOutputStream
 
 class RecipeRepository(private val context: Context) {
     private val file = File(context.filesDir, "recipes.json")
@@ -76,9 +81,61 @@ class RecipeRepository(private val context: Context) {
         val incoming = json.decodeFromString<RecipeExport>(text).recipes
             // photo filenames from another device are meaningless — keep only local files
             .map { r -> r.copy(photos = r.photos.filter { photoFile(it).exists() }) }
+        return merge(incoming)
+    }
+
+    private fun merge(incoming: List<Recipe>): Int {
         val before = _recipes.value.associateBy { it.id }
         val merged = mergeRecipes(_recipes.value, incoming)
         persist(merged)
         return merged.count { before[it.id] != it }
+    }
+
+    // -- Full backup: recipes.json + the photos they reference, in one archive --
+
+    /** Writes a complete backup (recipes and their photos) as a ZIP. */
+    fun exportZip(out: OutputStream) {
+        ZipOutputStream(out.buffered()).use { zip ->
+            zip.putNextEntry(ZipEntry(BACKUP_JSON))
+            zip.write(exportJson().toByteArray())
+            zip.closeEntry()
+            for (name in _recipes.value.flatMap { it.photos }.distinct()) {
+                val file = photoFile(name)
+                if (!file.exists()) continue
+                zip.putNextEntry(ZipEntry("$PHOTO_DIR/$name"))
+                file.inputStream().use { it.copyTo(zip) }
+                zip.closeEntry()
+            }
+        }
+    }
+
+    /**
+     * Restores a ZIP backup: photos are written to app storage first so the
+     * recipes that reference them keep their illustrations.
+     */
+    fun importZip(input: InputStream): Int {
+        var recipesJson: String? = null
+        ZipInputStream(input.buffered()).use { zip ->
+            while (true) {
+                val entry = zip.nextEntry ?: break
+                val name = entry.name.substringAfterLast('/')
+                when {
+                    entry.isDirectory || name.isEmpty() -> Unit
+                    entry.name == BACKUP_JSON -> recipesJson = zip.readBytes().decodeToString()
+                    // Flatten to a bare filename: never let an archive path escape photosDir
+                    entry.name.startsWith("$PHOTO_DIR/") -> photoFile(name).writeBytes(zip.readBytes())
+                }
+                zip.closeEntry()
+            }
+        }
+        val text = recipesJson ?: throw IllegalArgumentException("no $BACKUP_JSON in archive")
+        val incoming = json.decodeFromString<RecipeExport>(text).recipes
+            .map { r -> r.copy(photos = r.photos.filter { photoFile(it).exists() }) }
+        return merge(incoming)
+    }
+
+    private companion object {
+        const val BACKUP_JSON = "recipes.json"
+        const val PHOTO_DIR = "photos"
     }
 }

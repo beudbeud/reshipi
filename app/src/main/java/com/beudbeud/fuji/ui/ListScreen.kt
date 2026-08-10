@@ -96,17 +96,18 @@ fun ListScreen(
     var menuOpen by remember { mutableStateOf(false) }
     var showLogs by remember { mutableStateOf(false) }
     var showTextImport by remember { mutableStateOf(false) }
+    var showCameraImport by remember { mutableStateOf(false) }
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
 
+    // Full backup: recipes + their photos, in one archive
     val exportLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.CreateDocument("application/json")
+        ActivityResultContracts.CreateDocument("application/zip")
     ) { uri ->
         if (uri != null) {
             val ok = runCatching {
-                context.contentResolver.openOutputStream(uri)!!
-                    .use { it.write(repo.exportJson().toByteArray()) }
+                context.contentResolver.openOutputStream(uri)!!.use { repo.exportZip(it) }
             }.isSuccess
             scope.launch {
                 snackbar.showSnackbar(context.getString(if (ok) R.string.export_done else R.string.export_failed))
@@ -118,9 +119,13 @@ fun ListScreen(
     ) { uri ->
         if (uri != null) {
             val result = runCatching {
-                val text = context.contentResolver.openInputStream(uri)!!
-                    .use { it.readBytes().decodeToString() }
-                repo.importJson(text)
+                val bytes = context.contentResolver.openInputStream(uri)!!.use { it.readBytes() }
+                // Accept both the ZIP backup and plain JSON exports from older versions
+                if (bytes.size > 4 && bytes[0] == 'P'.code.toByte() && bytes[1] == 'K'.code.toByte()) {
+                    repo.importZip(bytes.inputStream())
+                } else {
+                    repo.importJson(bytes.decodeToString())
+                }
             }
             scope.launch {
                 snackbar.showSnackbar(
@@ -179,6 +184,16 @@ fun ListScreen(
         recipes.flatMap { it.tags }.distinct().sorted().map { "#$it" to it } +
             recipes.map { it.filmSimulation.label }.distinct().sorted().map { it to it } +
             recipes.map { it.cameraLabel }.distinct().sorted().map { it to it }
+    }
+
+    if (showCameraImport) {
+        ImportFromCameraDialog(
+            repo = repo,
+            onDismiss = { showCameraImport = false },
+            onImported = { n ->
+                scope.launch { snackbar.showSnackbar(context.getString(R.string.import_done, n)) }
+            },
+        )
     }
 
     if (showTextImport) {
@@ -314,12 +329,19 @@ fun ListScreen(
                                 onClick = { menuOpen = false; showTextImport = true },
                             )
                             DropdownMenuItem(
+                                text = { Text(stringResource(R.string.import_from_camera)) },
+                                onClick = { menuOpen = false; showCameraImport = true },
+                            )
+                            DropdownMenuItem(
                                 text = { Text(stringResource(R.string.import_json)) },
                                 onClick = {
                                     menuOpen = false
                                     // Drive sometimes reports JSON as octet-stream
                                     importLauncher.launch(
-                                        arrayOf("application/json", "application/octet-stream", "text/plain")
+                                        arrayOf(
+                                            "application/zip", "application/json",
+                                            "application/octet-stream", "text/plain",
+                                        )
                                     )
                                 },
                             )
@@ -327,7 +349,7 @@ fun ListScreen(
                                 text = { Text(stringResource(R.string.export_json)) },
                                 onClick = {
                                     menuOpen = false
-                                    exportLauncher.launch("fuji-recipes-${LocalDate.now()}.json")
+                                    exportLauncher.launch("reshipi-backup-${LocalDate.now()}.zip")
                                 },
                             )
                             DropdownMenuItem(

@@ -1,7 +1,9 @@
 package com.beudbeud.fuji.data.ptp
 
+import com.beudbeud.fuji.model.CAMERA_MODELS
 import com.beudbeud.fuji.model.DynamicRange
 import com.beudbeud.fuji.model.FilmSimulation
+import com.beudbeud.fuji.model.Generation
 import com.beudbeud.fuji.model.GrainSize
 import com.beudbeud.fuji.model.Recipe
 import com.beudbeud.fuji.model.Strength
@@ -102,6 +104,63 @@ fun Recipe.toPresetProps(): List<Pair<Int, ByteArray>> = buildList {
     add(0xD1A3 to packU16(1)) // LongExpNR on (observed default)
     add(0xD1A4 to packU16(1)) // ColorSpace sRGB
     add(0xD1A5 to packU16(7)) // unknown, constant in all observed presets
+}
+
+/**
+ * Decode a preset read back from the camera (properties 0xD18E-0xD1A5) into a
+ * Recipe — the inverse of [toPresetProps]. Unknown or sentinel values fall back
+ * to the Recipe defaults rather than failing, so a partially-read slot still
+ * produces something editable.
+ */
+fun recipeFromPresetProps(name: String, props: Map<Int, ByteArray>, cameraModel: String): Recipe {
+    fun i16(id: Int): Int? = props[id]?.takeIf { it.size >= 2 }?.let {
+        java.nio.ByteBuffer.wrap(it).order(java.nio.ByteOrder.LITTLE_ENDIAN).short.toInt()
+    }
+    fun u16(id: Int): Int? = i16(id)?.and(0xFFFF)
+    // Tone values are stored x10; 0x8000 is "unset", meaning the shooting value.
+    fun tone(id: Int): Double = i16(id)?.takeIf { it != -32768 }?.let { it / 10.0 } ?: 0.0
+
+    val simByCode = FILM_SIM_CODE.entries.associate { (k, v) -> v to k }
+    val wbByCode = WB_CODE.entries.associate { (k, v) -> v to k }
+    val nrByCode = NR_ENCODE.entries.associate { (k, v) -> v to k }
+
+    val sim = simByCode[u16(0xD192)] ?: FilmSimulation.PROVIA
+    val wb = wbByCode[u16(0xD199)] ?: WhiteBalance.AUTO
+    // Grain: 1=off, 2=weak/small, 3=strong/small, 4=weak/large, 5=strong/large.
+    // Some bodies keep the size while off (6=off/small, 7=off/large).
+    val grainRaw = u16(0xD195) ?: 1
+    val generation = CAMERA_MODELS.toMap()[cameraModel] ?: Generation.X_TRANS_V
+
+    return Recipe(
+        name = name,
+        cameraModel = cameraModel,
+        generation = generation,
+        filmSimulation = sim,
+        whiteBalance = wb,
+        kelvin = u16(0xD19C)?.takeIf { wb == WhiteBalance.KELVIN && it > 0 },
+        wbShiftRed = (i16(0xD19A) ?: 0).coerceIn(-9, 9),
+        wbShiftBlue = (i16(0xD19B) ?: 0).coerceIn(-9, 9),
+        dynamicRange = when (u16(0xD190)) {
+            200 -> DynamicRange.DR200
+            400 -> DynamicRange.DR400
+            else -> DynamicRange.DR100
+        },
+        highlight = tone(0xD19D).coerceIn(-2.0, generation.toneMax),
+        shadow = tone(0xD19E).coerceIn(-2.0, generation.toneMax),
+        color = tone(0xD19F).roundToInt().coerceIn(-generation.colorRange, generation.colorRange),
+        sharpness = tone(0xD1A0).roundToInt().coerceIn(-generation.colorRange, generation.colorRange),
+        noiseReduction = (nrByCode[u16(0xD1A1)] ?: 0).coerceIn(-generation.colorRange, generation.colorRange),
+        grainEffect = when (grainRaw) {
+            2, 4 -> Strength.WEAK
+            3, 5 -> Strength.STRONG
+            else -> Strength.OFF
+        },
+        grainSize = if (grainRaw == 4 || grainRaw == 5 || grainRaw == 7) GrainSize.LARGE else GrainSize.SMALL,
+        colorChromeEffect = Strength.entries.getOrElse((u16(0xD196) ?: 1) - 1) { Strength.OFF },
+        colorChromeFxBlue = Strength.entries.getOrElse((u16(0xD197) ?: 1) - 1) { Strength.OFF },
+        clarity = tone(0xD1A2).roundToInt().coerceIn(-5, 5),
+        tags = listOf("camera"),
+    )
 }
 
 /**

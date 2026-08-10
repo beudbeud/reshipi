@@ -68,8 +68,12 @@
     <string name="camera_not_found">Aucun boîtier Fujifilm détecté. Branche-le en USB et règle son mode USB sur CONV. RAW/RESTAURER SAUVEGARDE.</string>
     <string name="camera_permission_denied">Permission USB refusée</string>
     <string name="camera_no_presets">Ce boîtier ne permet pas la modification des presets par USB</string>
-    <string name="export_json">Exporter en JSON</string>
-    <string name="import_json">Importer un JSON</string>
+    <string name="import_from_camera">Importer depuis le boîtier</string>
+    <string name="camera_reading">Lecture des presets du boîtier…</string>
+    <string name="camera_no_slots">Aucun preset configuré sur le boîtier (C1–C7 vides).</string>
+    <string name="import_selected">Importer (%1$d)</string>
+    <string name="export_json">Exporter une sauvegarde (ZIP)</string>
+    <string name="import_json">Importer une sauvegarde</string>
     <string name="export_done">Recettes exportées</string>
     <string name="export_failed">Échec de l\'export</string>
     <string name="import_done">%1$d recettes importées</string>
