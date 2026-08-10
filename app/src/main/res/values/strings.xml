@@ -67,6 +67,10 @@
     <string name="import_done">%1$d recipes imported</string>
     <string name="import_failed">Import failed: invalid file</string>
 
+    <string name="debug_logs">Debug logs</string>
+    <string name="close">Close</string>
+    <string name="clear">Clear</string>
+
     <string name="off">Off</string>
     <string name="weak">Weak</string>
     <string name="strong">Strong</string>

@@ -67,6 +67,10 @@
     <string name="import_done">%1$d recettes importées</string>
     <string name="import_failed">Échec de l\'import : fichier invalide</string>
 
+    <string name="debug_logs">Logs de débogage</string>
+    <string name="close">Fermer</string>
+    <string name="clear">Effacer</string>
+
     <string name="off">Désactivé</string>
     <string name="weak">Faible</string>
     <string name="strong">Fort</string>

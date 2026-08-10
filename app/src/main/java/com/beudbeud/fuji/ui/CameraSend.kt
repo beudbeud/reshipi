@@ -31,6 +31,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.beudbeud.fuji.R
+import com.beudbeud.fuji.data.DebugLog
 import com.beudbeud.fuji.data.ptp.FujiCamera
 import com.beudbeud.fuji.data.ptp.toPresetProps
 import com.beudbeud.fuji.model.Recipe
@@ -92,10 +93,14 @@ fun SendToCameraDialog(recipe: Recipe, onDismiss: () -> Unit) {
 
 /** Full send flow: find camera, get permission, write preset. Returns a status message. */
 private suspend fun sendRecipe(context: Context, recipe: Recipe, slot: Int): String {
+    DebugLog.log("send \"${recipe.name}\" → C$slot")
     val manager = context.getSystemService(Context.USB_SERVICE) as UsbManager
     val device = FujiCamera.findDevice(manager)
-        ?: return context.getString(R.string.camera_not_found)
+        ?: return context.getString(R.string.camera_not_found).also {
+            DebugLog.log("no Fuji USB device (${manager.deviceList.size} devices attached)")
+        }
     if (!requestUsbPermission(context, manager, device)) {
+        DebugLog.log("USB permission denied")
         return context.getString(R.string.camera_permission_denied)
     }
     return withContext(Dispatchers.IO) {
@@ -116,7 +121,10 @@ private suspend fun sendRecipe(context: Context, recipe: Recipe, slot: Int): Str
             } finally {
                 camera.close()
             }
-        }.getOrElse { context.getString(R.string.camera_failed, it.message ?: it.javaClass.simpleName) }
+        }.getOrElse {
+            DebugLog.log("send failed: ${it.message ?: it.javaClass.simpleName}")
+            context.getString(R.string.camera_failed, it.message ?: it.javaClass.simpleName)
+        }
     }
 }
 

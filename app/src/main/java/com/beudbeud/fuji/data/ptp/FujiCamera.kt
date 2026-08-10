@@ -6,6 +6,7 @@ import android.hardware.usb.UsbDeviceConnection
 import android.hardware.usb.UsbEndpoint
 import android.hardware.usb.UsbInterface
 import android.hardware.usb.UsbManager
+import com.beudbeud.fuji.data.DebugLog
 import java.io.IOException
 
 /**
@@ -59,6 +60,7 @@ class FujiCamera private constructor(
             val diag = "if=${iface.interfaceClass}/${iface.interfaceSubclass}" +
                 " in=0x${epIn.address.toString(16)} out=0x${epOut.address.toString(16)}" +
                 " nIf=${device.interfaceCount}"
+            DebugLog.log("USB open: ${device.productName} pid=0x${device.productId.toString(16)} $diag")
             return FujiCamera(connection, iface, epIn, epOut, diag)
         }
     }
@@ -122,10 +124,12 @@ class FujiCamera private constructor(
 
     fun openSession() {
         val (code, _) = sendCommand(PtpOp.OPEN_SESSION, intArrayOf(1))
+        DebugLog.log("OpenSession → 0x${code.toString(16)}")
         when (code) {
             PtpResp.OK -> sessionOpen = true
             PtpResp.SESSION_ALREADY_OPEN -> {
                 // Stale session from a previous connection: close and retry once.
+                DebugLog.log("Stale session, closing and retrying")
                 runCatching { sendCommand(PtpOp.CLOSE_SESSION) }
                 val (retry, _) = sendCommand(PtpOp.OPEN_SESSION, intArrayOf(1))
                 if (retry != PtpResp.OK) throw IOException("OpenSession failed: 0x${retry.toString(16)}")
@@ -143,7 +147,9 @@ class FujiCamera private constructor(
         r.u16(); r.u32(); r.u16(); r.str(); r.u16()
         r.u16array() // operations
         r.u16array() // events
-        return r.u16array().toSet()
+        val props = r.u16array().toSet()
+        DebugLog.log("DeviceInfo: ${props.size} properties, presetProps=${0xD18C in props}")
+        return props
     }
 
     private fun readProp(propId: Int): ByteArray? = runCatching {
@@ -188,6 +194,8 @@ class FujiCamera private constructor(
                 warnings += "0x${id.toString(16).uppercase()}: verify mismatch"
             }
         }
+        DebugLog.log("writePreset C$slot \"$name\": ${written.size}/${props.size} written, ${warnings.size} warnings")
+        warnings.forEach { DebugLog.log("  warn: $it") }
         return PresetWriteResult(true, warnings)
     }
 
