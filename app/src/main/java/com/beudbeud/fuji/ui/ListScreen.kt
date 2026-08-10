@@ -4,17 +4,26 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import android.content.Intent
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import coil.compose.AsyncImage
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
@@ -24,6 +33,7 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -360,38 +370,93 @@ fun ListScreen(
                     )
                 }
             } else {
-                LazyColumn {
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(2),
+                    contentPadding = PaddingValues(12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
                     items(shown, key = { it.id }) { r ->
-                        Card(
-                            onClick = { onOpen(r.id) },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 6.dp),
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 8.dp, end = 4.dp),
-                            ) {
-                                Column(Modifier.weight(1f)) {
-                                    Text(r.name, style = MaterialTheme.typography.titleMedium)
-                                    Text(
-                                        "${r.filmSimulation.label} · ${r.cameraLabel}",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
-                                }
-                                IconButton(onClick = { repo.toggleFavorite(r.id) }) {
-                                    Icon(
-                                        if (r.favorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                                        stringResource(R.string.favorite),
-                                        tint = if (r.favorite) MaterialTheme.colorScheme.primary
-                                        else MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
-                                }
-                            }
-                        }
+                        RecipeCard(r, repo, onOpen)
                     }
                 }
+            }
+        }
+    }
+}
+
+/** Photo-first grid card: cover photo (or a film-sim tinted placeholder), scrim, overlay info. */
+@Composable
+private fun RecipeCard(r: Recipe, repo: RecipeRepository, onOpen: (String) -> Unit) {
+    val accent = simAccent(r.filmSimulation)
+    Card(
+        onClick = { onOpen(r.id) },
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+    ) {
+        Box(Modifier.aspectRatio(0.85f)) {
+            val cover = r.photos.firstOrNull()
+            if (cover != null) {
+                AsyncImage(
+                    model = repo.photoFile(cover),
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            } else {
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .background(
+                            Brush.linearGradient(
+                                listOf(accent.copy(alpha = 0.50f), accent.copy(alpha = 0.15f))
+                            )
+                        ),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        r.filmSimulation.label,
+                        style = MaterialTheme.typography.titleSmall,
+                        color = Color.White.copy(alpha = 0.55f),
+                    )
+                }
+            }
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.verticalGradient(
+                            0.45f to Color.Transparent,
+                            1f to Color(0xCC000000),
+                        )
+                    )
+            )
+            IconButton(
+                onClick = { repo.toggleFavorite(r.id) },
+                modifier = Modifier.align(Alignment.TopEnd),
+            ) {
+                Icon(
+                    if (r.favorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                    stringResource(R.string.favorite),
+                    tint = if (r.favorite) Color(0xFFE57373) else Color.White.copy(alpha = 0.75f),
+                )
+            }
+            Column(
+                Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(12.dp)
+            ) {
+                Text(
+                    r.name,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = Color.White,
+                    maxLines = 2,
+                )
+                Text(
+                    "${r.filmSimulation.label} · ${r.cameraLabel}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color.White.copy(alpha = 0.7f),
+                    maxLines = 1,
+                )
             }
         }
     }

@@ -2,7 +2,11 @@ package com.beudbeud.fuji.ui
 
 import android.content.Context
 import android.content.Intent
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -135,25 +139,45 @@ fun DetailScreen(
                 .padding(horizontal = 16.dp)
                 .verticalScroll(rememberScrollState())
         ) {
-            if (recipe.photos.isNotEmpty()) {
-                LazyRow(Modifier.padding(vertical = 8.dp)) {
-                    items(recipe.photos) { name ->
+            recipe.photos.firstOrNull()?.let { hero ->
+                AsyncImage(
+                    model = repo.photoFile(hero),
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .aspectRatio(1.5f)
+                        .clip(RoundedCornerShape(14.dp))
+                        .clickable { fullPhoto = hero },
+                )
+            }
+            if (recipe.photos.size > 1) {
+                LazyRow(Modifier.padding(top = 8.dp)) {
+                    items(recipe.photos.drop(1)) { name ->
                         AsyncImage(
                             model = repo.photoFile(name),
                             contentDescription = null,
                             contentScale = ContentScale.Crop,
                             modifier = Modifier
                                 .padding(end = 8.dp)
-                                .size(120.dp)
-                                .clip(RoundedCornerShape(8.dp))
+                                .size(84.dp)
+                                .clip(RoundedCornerShape(10.dp))
                                 .clickable { fullPhoto = name },
                         )
                     }
                 }
-                HorizontalDivider()
             }
-            DetailRow(stringResource(R.string.camera_model), recipe.cameraLabel)
-            DetailRow(stringResource(R.string.film_simulation), recipe.filmSimulation.label)
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier
+                    .padding(vertical = 10.dp)
+                    .horizontalScroll(rememberScrollState()),
+            ) {
+                InfoChip(recipe.filmSimulation.label, dot = simAccent(recipe.filmSimulation))
+                InfoChip(recipe.cameraLabel)
+                recipe.tags.forEach { InfoChip("#$it") }
+            }
+            HorizontalDivider(Modifier.padding(bottom = 4.dp))
             DetailRow(
                 stringResource(R.string.white_balance),
                 stringResource(recipe.whiteBalance.labelRes) +
@@ -185,9 +209,6 @@ fun DetailScreen(
             }
             DetailRow(stringResource(R.string.iso), recipe.iso)
             DetailRow(stringResource(R.string.exposure_compensation), recipe.exposureCompensation)
-            if (recipe.tags.isNotEmpty()) {
-                DetailRow(stringResource(R.string.tags), recipe.tags.joinToString(", "))
-            }
             if (recipe.notes.isNotBlank()) {
                 SectionHeader(stringResource(R.string.notes))
                 Text(recipe.notes, style = MaterialTheme.typography.bodyMedium)
@@ -290,7 +311,7 @@ private fun shareRecipe(context: Context, recipe: Recipe) {
 
 @Composable
 private fun DetailRow(label: String, value: String) {
-    Row(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+    Row(Modifier.fillMaxWidth().padding(vertical = 7.dp)) {
         Text(
             label,
             style = MaterialTheme.typography.bodyMedium,
@@ -298,5 +319,27 @@ private fun DetailRow(label: String, value: String) {
             modifier = Modifier.weight(1f),
         )
         Text(value, style = MaterialTheme.typography.bodyMedium)
+    }
+}
+
+@Composable
+private fun InfoChip(text: String, dot: androidx.compose.ui.graphics.Color? = null) {
+    Row(
+        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+        modifier = Modifier
+            .clip(RoundedCornerShape(50))
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+    ) {
+        if (dot != null) {
+            Box(
+                Modifier
+                    .padding(end = 6.dp)
+                    .size(8.dp)
+                    .clip(RoundedCornerShape(50))
+                    .background(dot)
+            )
+        }
+        Text(text, style = MaterialTheme.typography.labelMedium)
     }
 }
