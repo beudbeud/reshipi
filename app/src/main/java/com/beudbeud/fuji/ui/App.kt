@@ -37,6 +37,8 @@ fun App(repo: RecipeRepository) {
     }
     MaterialTheme(colorScheme = colors) {
         var screen by remember { mutableStateOf<Screen>(Screen.Home) }
+        // Pre-filled draft when creating a recipe from a photo's EXIF
+        var photoDraft by remember { mutableStateOf<com.beudbeud.fuji.model.Recipe?>(null) }
         BackHandler(screen != Screen.Home) {
             screen = when (val s = screen) {
                 is Screen.Edit -> if (s.id != null) Screen.Detail(s.id) else Screen.Home
@@ -49,7 +51,8 @@ fun App(repo: RecipeRepository) {
                 recipes = recipes,
                 repo = repo,
                 onOpen = { screen = Screen.Detail(it) },
-                onAdd = { screen = Screen.Edit(null) },
+                onAdd = { photoDraft = null; screen = Screen.Edit(null) },
+                onCreateFromPhoto = { photoDraft = it; screen = Screen.Edit(null) },
             )
             is Screen.Detail -> {
                 val recipe = recipes.find { it.id == s.id }
@@ -66,7 +69,7 @@ fun App(repo: RecipeRepository) {
                 }
             }
             is Screen.Edit -> EditScreen(
-                existing = recipes.find { it.id == s.id },
+                existing = if (s.id != null) recipes.find { it.id == s.id } else photoDraft,
                 repo = repo,
                 onDone = { saved -> screen = Screen.Detail(saved.id) },
                 onBack = { screen = if (s.id != null) Screen.Detail(s.id) else Screen.Home },

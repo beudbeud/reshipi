@@ -1,6 +1,7 @@
 package com.beudbeud.fuji.ui
 
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import android.content.Intent
 import androidx.compose.foundation.layout.Box
@@ -52,6 +53,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import com.beudbeud.fuji.R
 import com.beudbeud.fuji.data.DebugLog
+import com.beudbeud.fuji.data.FujiExif
 import com.beudbeud.fuji.data.RecipeRepository
 import com.beudbeud.fuji.model.Recipe
 import com.beudbeud.fuji.model.cameraLabel
@@ -68,6 +70,7 @@ fun ListScreen(
     repo: RecipeRepository,
     onOpen: (String) -> Unit,
     onAdd: () -> Unit,
+    onCreateFromPhoto: (Recipe) -> Unit,
 ) {
     var query by remember { mutableStateOf("") }
     var searching by remember { mutableStateOf(false) }
@@ -107,6 +110,22 @@ fun ListScreen(
                         onFailure = { context.getString(R.string.import_failed) },
                     )
                 )
+            }
+        }
+    }
+
+    val photoImportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        if (uri != null) {
+            val recipe = runCatching {
+                val bytes = context.contentResolver.openInputStream(uri)!!.use { it.readBytes() }
+                FujiExif.parse(bytes)
+            }.getOrNull()
+            if (recipe == null) {
+                scope.launch { snackbar.showSnackbar(context.getString(R.string.photo_no_recipe)) }
+            } else {
+                onCreateFromPhoto(recipe.copy(photos = listOf(repo.addPhoto(uri))))
             }
         }
     }
@@ -186,6 +205,15 @@ fun ListScreen(
                             Icon(Icons.Default.MoreVert, stringResource(R.string.more))
                         }
                         DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.new_from_photo)) },
+                                onClick = {
+                                    menuOpen = false
+                                    photoImportLauncher.launch(
+                                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                                    )
+                                },
+                            )
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.export_json)) },
                                 onClick = {

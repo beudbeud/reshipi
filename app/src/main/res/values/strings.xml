@@ -3,6 +3,8 @@
     <string name="app_name">Reshipi</string>
 
     <string name="new_recipe">New recipe</string>
+    <string name="new_from_photo">New recipe from a photo</string>
+    <string name="photo_no_recipe">No Fujifilm settings found in this photo. Only unedited JPEGs straight from the camera work.</string>
     <string name="edit_recipe">Edit recipe</string>
     <string name="save">Save</string>
     <string name="cancel">Cancel</string>
