@@ -14,8 +14,9 @@ import java.io.IOException
  * (github.com/eggricesoy/filmkit, MIT license).
  *
  * Custom preset properties (0xD18C slot select, 0xD18D name, 0xD18E-0xD1A5
- * settings) confirmed on X100VI; other X-Processor 5 bodies advertise the
- * same properties in DeviceInfo, which is checked before writing.
+ * settings) confirmed working on X100VI (FilmKit) and X-T30 III (this app,
+ * 2026-08). Other X-Processor 5 bodies advertise the same properties in
+ * DeviceInfo, which is checked before writing.
  */
 class FujiCamera private constructor(
     private val connection: UsbDeviceConnection,
