@@ -26,15 +26,23 @@ object FujiStyleCard {
         fun num(keyPattern: String): Double? =
             field(keyPattern)?.let { Regex("-?\\d+(\\.\\d+)?").find(it)?.value?.toDoubleOrNull() }
 
-        val sim = field("Film\\s+Simulation")?.let { detectSim(it) } ?: return null
+        // Some pages list the simulation twice (base then refined variant,
+        // e.g. "Monochrome" then "Monochrome+ Ye Filter") — keep the last one.
+        val sim = Regex("Film\\s+Simulation\\s*:\\s*([^|\\n]+)", RegexOption.IGNORE_CASE)
+            .findAll(text)
+            .mapNotNull { detectSim(it.groupValues[1]) }
+            .lastOrNull() ?: return null
 
         val wbRaw = (field("White\\s+Balance") ?: "").uppercase()
         val kelvinMatch = Regex("(\\d{4,5})\\s*K").find(wbRaw)?.groupValues?.get(1)?.toIntOrNull()
-        // Shifts either as their own fields ("Red: -6") or inside the WB value
-        // ("+1 Red & +1 Blue" / "Red +2, Blue -2")
+        // Shifts as their own fields ("Red: -6"), inside the WB value
+        // ("+1 Red & +1 Blue"), or in a "White Balance Shift: R +2, B -2" field
+        val shiftRaw = (field("White\\s+Balance\\s+Shift") ?: "").uppercase()
         fun wbShift(color: String): Int? =
             Regex("([+-]?\\d+)\\s*$color").find(wbRaw)?.groupValues?.get(1)?.toIntOrNull()
                 ?: Regex("$color\\s*:?\\s*([+-]?\\d+)").find(wbRaw)?.groupValues?.get(1)?.toIntOrNull()
+                ?: Regex("\\b${color.first()}\\s*:?\\s*([+-]?\\d+)").find(shiftRaw)
+                    ?.groupValues?.get(1)?.toIntOrNull()
         val whiteBalance = when {
             kelvinMatch != null || "KELVIN" in wbRaw -> WhiteBalance.KELVIN
             "DAYLIGHT" in wbRaw -> WhiteBalance.DAYLIGHT

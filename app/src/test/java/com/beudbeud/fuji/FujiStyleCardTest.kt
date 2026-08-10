@@ -182,6 +182,45 @@ class FujiStyleCardTest {
     }
 
     @Test
+    fun parsesDoubleSimLineAndWbShiftField() {
+        // Second shuttergroove dialect: two Film Simulation lines (base then
+        // variant) and a separate "White Balance Shift: R +2, B -2" field
+        val r = FujiStyleCard.parse(
+            """
+            Film Simulation: Monochrome
+            Film Simulation: Monochrome+ Ye Filter
+            Monochromatic Color: 0
+            Dynamic Range: DR200
+            Highlight: 0
+            Shadow: 0
+            Clarity: +5
+            Noise Reduction: -4
+            Sharpness: +4
+            Grain Effect: Weak, Small
+            Color Chrome Effect: Strong
+            Color Chrome FX Blue: Off
+            White Balance: Daylight
+            White Balance Shift: R +2, B -2
+            ISO: Auto ISO 6400
+            Exposure Compensation: 0 to -2/3
+            """.trimIndent(),
+            tag = "web",
+        )!!
+        assertEquals(FilmSimulation.MONOCHROME_YE, r.filmSimulation)
+        assertEquals(WhiteBalance.DAYLIGHT, r.whiteBalance)
+        assertEquals(2, r.wbShiftRed)
+        assertEquals(-2, r.wbShiftBlue)
+        assertEquals(DynamicRange.DR200, r.dynamicRange)
+        assertEquals(5, r.clarity)
+        assertEquals(-4, r.noiseReduction)
+        assertEquals(4, r.sharpness)
+        assertEquals(Strength.WEAK, r.grainEffect)
+        assertEquals(GrainSize.SMALL, r.grainSize)
+        assertEquals("Auto ISO 6400", r.iso)
+        assertEquals("0 to -2/3", r.exposureCompensation)
+    }
+
+    @Test
     fun rejectsTextWithoutFilmSimulation() {
         assertNull(FujiStyleCard.parse("random text with no recipe"))
         assertNull(FujiStyleCard.parse("Film Simulation: SOMETHING UNKNOWN | Red: 1"))

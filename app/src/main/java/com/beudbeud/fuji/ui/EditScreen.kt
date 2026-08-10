@@ -39,7 +39,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.beudbeud.fuji.R
@@ -94,9 +96,17 @@ fun EditScreen(
                 .padding(horizontal = 16.dp)
                 .verticalScroll(rememberScrollState())
         ) {
+            // TextFieldValue keeps cursor control sane with prefilled names
+            // (String overload can lock the cursor when the text was set programmatically)
+            var nameField by remember {
+                mutableStateOf(TextFieldValue(draft.name, TextRange(draft.name.length)))
+            }
             OutlinedTextField(
-                value = draft.name,
-                onValueChange = { draft = draft.copy(name = it) },
+                value = nameField,
+                onValueChange = {
+                    nameField = it
+                    draft = draft.copy(name = it.text)
+                },
                 label = { Text(stringResource(R.string.name)) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
