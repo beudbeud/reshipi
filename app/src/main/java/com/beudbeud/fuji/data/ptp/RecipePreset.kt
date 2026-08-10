@@ -48,8 +48,12 @@ internal val WB_CODE = mapOf(
     WhiteBalance.INCANDESCENT to 0x0006,
     WhiteBalance.UNDERWATER to 0x0008,
     WhiteBalance.KELVIN to 0x8007,
-    // CUSTOM_1..3 are deliberately absent: their codes are unverified, and
-    // writing a guess would silently set the wrong white balance on the camera.
+    // Confirmed on X-T30 III (2026-08): a slot set to Custom 1 reads back 0x8008.
+    WhiteBalance.CUSTOM_1 to 0x8008,
+    // CUSTOM_2/CUSTOM_3 most likely continue the sequence (0x8009, 0x800A) but
+    // are unconfirmed, so they are left out: writing a guess would silently set
+    // the wrong white balance. Recipes can still record them; the send flow
+    // skips the property and says so.
 )
 
 /** HighIsoNR uses a proprietary non-linear encoding (from Wireshark captures). */
@@ -204,7 +208,8 @@ fun Recipe.patchProfile(base: ByteArray): ByteArray {
     set(9, grain)
     set(10, colorChromeEffect.ordinal + 1)
     set(25, colorChromeFxBlue.ordinal + 1)
-    set(12, WB_CODE.getValue(whiteBalance))
+    // No confirmed code (Custom 2/3): keep the RAF's white balance
+    WB_CODE[whiteBalance]?.let { set(12, it) }
     if (whiteBalance == WhiteBalance.KELVIN && kelvin != null) set(15, kelvin)
     set(13, wbShiftRed)
     set(14, wbShiftBlue)

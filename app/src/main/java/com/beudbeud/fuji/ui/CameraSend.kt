@@ -37,6 +37,7 @@ import com.beudbeud.fuji.R
 import com.beudbeud.fuji.data.DebugLog
 import com.beudbeud.fuji.data.RecipeRepository
 import com.beudbeud.fuji.data.ptp.FujiCamera
+import com.beudbeud.fuji.data.ptp.WB_CODE
 import com.beudbeud.fuji.data.ptp.recipeFromPresetProps
 import com.beudbeud.fuji.data.ptp.toPresetProps
 import com.beudbeud.fuji.model.Recipe
@@ -184,8 +185,8 @@ private suspend fun sendRecipe(
                 }
 
                 val result = camera.writePreset(slot, recipe.name.take(SLOT_NAME_MAX), recipe.toPresetProps())
-                // A custom WB has no confirmed camera code, so it is never written
-                if (recipe.whiteBalance.name.startsWith("CUSTOM")) {
+                // White balances without a confirmed camera code are not written
+                if (WB_CODE[recipe.whiteBalance] == null) {
                     notes += context.getString(R.string.camera_wb_custom_warning)
                 }
                 when {

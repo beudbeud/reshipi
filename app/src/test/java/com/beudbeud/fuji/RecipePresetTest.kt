@@ -13,6 +13,7 @@ import com.beudbeud.fuji.model.Recipe
 import com.beudbeud.fuji.model.Strength
 import com.beudbeud.fuji.model.WhiteBalance
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -111,6 +112,19 @@ class RecipePresetTest {
     fun ptpStringRoundTrip() {
         assertEquals("Kodachrome 64", parsePtpString(packPtpString("Kodachrome 64")))
         assertEquals("", parsePtpString(packPtpString("")))
+    }
+
+    @Test
+    fun customWhiteBalance() {
+        // Custom 1 = 0x8008, confirmed by reading a slot set to Custom 1 on an X-T30 III.
+        val props = Recipe(name = "C", whiteBalance = WhiteBalance.CUSTOM_1).toPresetProps()
+        assertEquals(0x8008.toShort().toInt(), props.value(0xD199))
+        assertEquals(
+            WhiteBalance.CUSTOM_1,
+            recipeFromPresetProps("C", mapOf(0xD199 to packU16(0x8008)), "X-T30 III").whiteBalance,
+        )
+        // Custom 2/3 have no confirmed code: the property is skipped rather than guessed.
+        assertNull(Recipe(name = "C", whiteBalance = WhiteBalance.CUSTOM_2).toPresetProps().value(0xD199))
     }
 
     @Test
