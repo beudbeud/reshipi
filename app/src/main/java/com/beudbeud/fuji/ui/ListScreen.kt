@@ -324,13 +324,6 @@ fun ListScreen(
                                 onClick = { menuOpen = false; showTextImport = true },
                             )
                             DropdownMenuItem(
-                                text = { Text(stringResource(R.string.export_json)) },
-                                onClick = {
-                                    menuOpen = false
-                                    exportLauncher.launch("fuji-recipes-${LocalDate.now()}.json")
-                                },
-                            )
-                            DropdownMenuItem(
                                 text = { Text(stringResource(R.string.import_json)) },
                                 onClick = {
                                     menuOpen = false
@@ -338,6 +331,13 @@ fun ListScreen(
                                     importLauncher.launch(
                                         arrayOf("application/json", "application/octet-stream", "text/plain")
                                     )
+                                },
+                            )
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.export_json)) },
+                                onClick = {
+                                    menuOpen = false
+                                    exportLauncher.launch("fuji-recipes-${LocalDate.now()}.json")
                                 },
                             )
                             DropdownMenuItem(
