@@ -22,7 +22,9 @@ object FujiStyleCard {
     // A dash glued to a digit is a minus sign ("Highlights -1"), not a separator.
     private const val SEP = "\\s*(?::|\\s[–-]\\s)\\s*"
 
-    internal val SIM_KEY = Regex("(?:Base\\s+)?Film\\s+Simulation$SEP", RegexOption.IGNORE_CASE)
+    // "Film Simulation", "Base Film Simulation", or the abbreviated "Film Sim"
+    private const val SIM_KEY_PAT = "(?:Base\\s+)?Film\\s+Sim(?:ulation)?"
+    internal val SIM_KEY = Regex("$SIM_KEY_PAT$SEP", RegexOption.IGNORE_CASE)
 
     /**
      * Parses every recipe in the text: pages listing several recipes are split
@@ -65,7 +67,7 @@ object FujiStyleCard {
 
         // Some pages list the simulation twice (base then refined variant,
         // e.g. "Monochrome" then "Monochrome+ Ye Filter") — keep the last one.
-        val sim = Regex("(?:Base\\s+)?Film\\s+Simulation$SEP([^|\\n]+)", RegexOption.IGNORE_CASE)
+        val sim = Regex("$SIM_KEY_PAT$SEP([^|\\n]+)", RegexOption.IGNORE_CASE)
             .findAll(text)
             .mapNotNull { detectSim(it.groupValues[1]) }
             .lastOrNull() ?: return null
@@ -82,11 +84,13 @@ object FujiStyleCard {
                 ?: Regex("\\b${color.first()}\\s*:?\\s*([+-]?\\d+)").find("$shiftRaw $wbRaw")
                     ?.groupValues?.get(1)?.toIntOrNull()
 
-        // "Tone Curve: Highlights -1, Shadows 0" combined field
+        // "Tone Curve: Highlights -1, Shadows 0", or abbreviated "H:-2, S:-2"
         val toneCurve = field("Tone\\s+Curve") ?: ""
         fun curve(part: String): Double? =
             Regex("$part\\w*\\s*:?\\s*([+-]?\\d+(\\.\\d+)?)", RegexOption.IGNORE_CASE)
                 .find(toneCurve)?.groupValues?.get(1)?.toDoubleOrNull()
+                ?: Regex("\\b${part.first()}\\s*:\\s*([+-]?\\d+(\\.\\d+)?)", RegexOption.IGNORE_CASE)
+                    .find(toneCurve)?.groupValues?.get(1)?.toDoubleOrNull()
         val whiteBalance = when {
             kelvinMatch != null || "KELVIN" in wbRaw -> WhiteBalance.KELVIN
             "DAYLIGHT" in wbRaw -> WhiteBalance.DAYLIGHT
@@ -101,7 +105,13 @@ object FujiStyleCard {
             else -> WhiteBalance.AUTO
         }
 
-        val drRaw = field("Dynamic\\s+Range") ?: ""
+        // "Dynamic Range", or the abbreviated "DR:" (never "DR Priority")
+        val drRaw = field("Dynamic\\s+Range") ?: field("\\bDR(?!\\s*Priority)") ?: ""
+
+        // Color Chrome keys, resolved once: some sites spell out "Effect" and use
+        // a bare "FX" for the blue variant, others use only one of the two.
+        val chromeEffect = field("(?:Colou?r\\s+)?Chrome\\s+Effect(?!\\s*Blue)")
+        val chromeFxNoBlue = field("(?:Colou?r\\s+)?Chrome\\s+FX(?!\\s*Blue)")
         val dynamicRange = when {
             "400" in drRaw -> DynamicRange.DR400
             "200" in drRaw -> DynamicRange.DR200
@@ -132,8 +142,9 @@ object FujiStyleCard {
             shadow = (num("Shadows?") ?: curve("Shadow") ?: 0.0).halfSteps().coerceIn(-2.0, 4.0),
             color = (num("Colou?r")?.roundToInt() ?: 0).coerceIn(-4, 4),
             sharpness = ((num("Sharpness") ?: num("Sharpening"))?.roundToInt() ?: 0).coerceIn(-4, 4),
-            noiseReduction = ((num("High\\s+ISO\\s+NR") ?: num("Noise\\s+Reduction"))?.roundToInt() ?: 0)
-                .coerceIn(-4, 4),
+            // "High ISO NR", "Noise Reduction", or the abbreviated "ISO N.R."
+            noiseReduction = ((num("High\\s+ISO\\s+NR") ?: num("Noise\\s+Reduction")
+                ?: num("ISO\\s*N\\.?\\s*R\\.?"))?.roundToInt() ?: 0).coerceIn(-4, 4),
             // Combined form "Grain Effect: Strong, Small", split Roughness/Size
             // fields, or bare "Grain: Off"
             grainEffect = strength(
@@ -144,19 +155,28 @@ object FujiStyleCard {
                     field("Grain\\s+(?:Effect\\s*-?\\s*)?Size") ?: field("Grain\\s+Effect")
                         ?: field("Grain")
                 )) GrainSize.LARGE else GrainSize.SMALL,
-            // "Color Chrome Effect", bare "Chrome Effect", or "Color chrome fx"
-            // (lookahead: don't grab the FX Blue variants)
-            colorChromeEffect = strength(field("(?:Colou?r\\s+)?Chrome\\s+(?:Effect|FX)(?!\\s*(?:Effect\\s*)?Blue)")),
+            // "Color Chrome Effect", bare "Chrome Effect", or "Col. Chr. Effect".
+            // "Color Chrome FX" (no Blue) only counts as the effect when the page
+            // has no explicit Effect key — some sites use it to mean FX Blue.
+            colorChromeEffect = strength(
+                chromeEffect ?: field("Col\\.?\\s*Chr\\.?\\s*Effect") ?: chromeFxNoBlue
+            ),
             // "Color FX Blue", "Color Chrome FX Blue", "Color Chrome Effect Blue",
-            // or "Color chrome blue"
-            colorChromeFxBlue = strength(field("Colou?r\\s+(?:Chrome\\s+)?(?:FX\\s+|Effect\\s+)?Blue")),
+            // "Color chrome blue", "Col. Chr. Blue" — or a bare "Color Chrome FX"
+            // when the page already spelled out the Effect key separately.
+            colorChromeFxBlue = strength(
+                field("Colou?r\\s+(?:Chrome\\s+)?(?:FX\\s+|Effect\\s+)?Blue")
+                    ?: field("Col\\.?\\s*Chr\\.?\\s*Blue")
+                    ?: chromeFxNoBlue.takeIf { chromeEffect != null }
+            ),
             clarity = (num("Clarity")?.roundToInt() ?: 0).coerceIn(-5, 5),
             // ISO is the only free-text field: when empty at the end of the block,
             // the regex can swallow the "Made with FUJISTYLE APP" footer line.
             iso = field("ISO")
                 ?.takeIf { it.isNotBlank() && !it.contains("fujistyle", true) && !it.contains("made with", true) }
                 ?: "Auto",
-            exposureCompensation = field("Exposure\\s+Compensation")?.takeIf { it.isNotBlank() } ?: "0",
+            exposureCompensation = (field("Exp(?:osure|\\.)?\\s*Comp(?:ensation|\\.)?")
+                ?: field("EV\\s*Comp\\.?"))?.takeIf { it.isNotBlank() } ?: "0",
             tags = listOf(tag),
         )
     }

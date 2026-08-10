@@ -115,4 +115,91 @@ class WebPagesTest {
         assertEquals(Strength.STRONG, lighthouse.grainEffect)
         assertEquals(GrainSize.LARGE, lighthouse.grainSize)
     }
+
+    @Test
+    fun grainyjpegs_inlineWbShiftsNoColon() {
+        val r = parsePage("grainyjpegs.html").single()
+        assertEquals(FilmSimulation.ETERNA, r.filmSimulation)
+        assertEquals(DynamicRange.DR400, r.dynamicRange)
+        assertEquals(WhiteBalance.FLUORESCENT_2, r.whiteBalance)
+        assertEquals(5, r.wbShiftRed)      // "R+5 B-6" — no colon after the letter
+        assertEquals(-6, r.wbShiftBlue)
+        assertEquals(-0.5, r.highlight, 0.0)
+        assertEquals(-1.0, r.shadow, 0.0)
+        assertEquals(-2, r.color)
+        assertEquals(Strength.WEAK, r.grainEffect)
+        assertEquals(GrainSize.SMALL, r.grainSize)
+        assertEquals(Strength.WEAK, r.colorChromeEffect)
+        assertEquals(Strength.STRONG, r.colorChromeFxBlue)
+    }
+
+    @Test
+    fun scotttucker_abbreviatedKeysAndToneCurve() {
+        val r = parsePage("scotttucker.html").single()
+        assertEquals(FilmSimulation.CLASSIC_NEG, r.filmSimulation)  // "Film Sim:"
+        assertEquals(DynamicRange.DR400, r.dynamicRange)            // "DR: DR400"
+        assertEquals(WhiteBalance.KELVIN, r.whiteBalance)
+        assertEquals(5100, r.kelvin)
+        assertEquals(2, r.wbShiftRed)
+        assertEquals(-2, r.wbShiftBlue)
+        assertEquals(-2.0, r.highlight, 0.0)                        // "Tone Curve: H:-2, S:-2"
+        assertEquals(-2.0, r.shadow, 0.0)
+        assertEquals(4, r.color)
+        assertEquals(-2, r.noiseReduction)
+        assertEquals(Strength.STRONG, r.grainEffect)                // "Strong Small"
+        assertEquals(GrainSize.SMALL, r.grainSize)
+    }
+
+    @Test
+    fun filmRecipes_gluedKeyValuesAndUnicodeMinus() {
+        val r = parsePage("filmrecipes.html").single()
+        assertEquals(FilmSimulation.CLASSIC_CHROME, r.filmSimulation) // "Film SimulationClassic Chrome"
+        assertEquals(DynamicRange.DR400, r.dynamicRange)
+        assertEquals(WhiteBalance.AUTO, r.whiteBalance)
+        assertEquals(2, r.wbShiftRed)
+        assertEquals(-4, r.wbShiftBlue)
+        assertEquals(1.0, r.highlight, 0.0)                           // "Highlights1"
+        assertEquals(-1.0, r.shadow, 0.0)                             // "Shadows&#8209;1"
+        assertEquals(3, r.color)
+        assertEquals(-4, r.noiseReduction)                            // "ISO N.R.&#8209;4"
+        assertEquals(Strength.WEAK, r.grainEffect)
+        assertEquals(GrainSize.SMALL, r.grainSize)
+        assertEquals(Strength.OFF, r.colorChromeEffect)               // "Col. Chr. EffectOff"
+        assertEquals(Strength.OFF, r.colorChromeFxBlue)               // "Col. Chr. BlueOff"
+    }
+
+    @Test
+    fun filmsimrecipes_headingValueLayout() {
+        val r = parsePage("filmsimrecipes.html").single()
+        assertEquals(FilmSimulation.PRO_NEG_HI, r.filmSimulation)
+        assertEquals(DynamicRange.DR400, r.dynamicRange)
+        assertEquals(WhiteBalance.AUTO, r.whiteBalance)
+        assertEquals(4, r.wbShiftRed)
+        assertEquals(-6, r.wbShiftBlue)
+        assertEquals(-1.0, r.highlight, 0.0)
+        assertEquals(-2.0, r.shadow, 0.0)
+        assertEquals(4, r.color)
+        assertEquals(-2, r.sharpness)
+        assertEquals(-4, r.noiseReduction)
+        assertEquals(-2, r.clarity)
+        assertEquals(Strength.STRONG, r.grainEffect)                  // "Strong /Small"
+        assertEquals(GrainSize.SMALL, r.grainSize)
+    }
+
+    @Test
+    fun shuttergrooveColorPlus_chromeFxWithoutBlueKeyword() {
+        val r = parsePage("shuttergroove-cp.html").single()
+        assertEquals(FilmSimulation.CLASSIC_CHROME, r.filmSimulation)
+        assertEquals(DynamicRange.DR100, r.dynamicRange)
+        assertEquals(WhiteBalance.DAYLIGHT, r.whiteBalance)
+        assertEquals(0, r.wbShiftRed)
+        assertEquals(-3, r.wbShiftBlue)
+        assertEquals(2, r.color)
+        assertEquals(-4, r.noiseReduction)
+        assertEquals(Strength.WEAK, r.grainEffect)                    // "Weak / Small"
+        assertEquals(GrainSize.SMALL, r.grainSize)
+        assertEquals(Strength.OFF, r.colorChromeEffect)
+        assertEquals(Strength.OFF, r.colorChromeFxBlue)               // "Color Chrome FX:" (no "Blue")
+        assertEquals("Auto up to 6400", r.iso)
+    }
 }

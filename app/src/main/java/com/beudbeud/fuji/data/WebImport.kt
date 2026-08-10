@@ -69,24 +69,35 @@ object WebImport {
         t = t.replace(Regex("(?i)<br ?/?>"), "\n")
             .replace(Regex("(?i)</(li|p|h[1-6]|div|tr)>"), "\n")
             .replace(Regex("<[^>]+>"), "")
-        return t.replace("&amp;", "&").replace("&nbsp;", " ")
-            .replace("&#8211;", "-").replace("&#8217;", "'")
-            .replace("&#8220;", "\"").replace("&#8221;", "\"")
+        // Decode numeric entities generically — sites use many (&#8209; is a
+        // non-breaking hyphen standing in for a minus sign).
+        t = Regex("&#(x?)([0-9a-fA-F]+);").replace(t) { m ->
+            val code = m.groupValues[2].toIntOrNull(if (m.groupValues[1].isEmpty()) 10 else 16)
+            if (code != null && code in 1..0x10FFFF) String(Character.toChars(code)) else m.value
+        }
+        t = t.replace("&amp;", "&").replace("&nbsp;", " ")
             .replace("&lt;", "<").replace("&gt;", ">").replace("&quot;", "\"")
+            .replace("&apos;", "'")
+        // Typographic dashes used as minus signs (non-breaking hyphen, figure
+        // dash, en dash, true minus) — normalize so "Shadows‑1" parses as -1.
+        return t.replace('‑', '-').replace('‒', '-')
+            .replace('–', '-').replace('−', '-')
     }
 
     // Setting names that some sites put on their own line (heading) with the
     // value on the following line — reassembled into "Key: value".
     private val KNOWN_KEYS = listOf(
         "grain effect / grain size", "color chrome effect / fx blue", "wb / color temperature",
-        "base film simulation", "film simulation", "dynamic range",
+        "base film simulation", "film simulation", "film sim", "dynamic range",
         "white balance shift", "white balance", "wb shift red", "wb shift blue",
         "highlights", "highlight", "shadows", "shadow", "colour",
         "color chrome effect", "color chrome fx blue",
+        "col. chr. effect", "col. chr. blue",
         "color", "sharpness", "sharpening", "noise reduction", "high iso nr",
+        "iso n.r.", "ev comp.", "tone curve",
         "grain effect", "grain size", "clarity", "iso", "exposure compensation",
         "dr priority", "d-range priority", "monochromatic color", "monochromatic colour",
-    )
+    ).sortedByDescending { it.length } // longest-first so "film sim" can't shadow "film simulation"
 
     /**
      * Generic pass for heading/value layouts (Elementor cards, tables): when a
@@ -94,8 +105,29 @@ object WebImport {
      * like a value, join them as "Key: value". Combined keys ("Grain Effect /
      * Grain Size: Strong / Small") are split into the parser's vocabulary.
      */
+    /**
+     * Table layouts that render key and value in adjacent cells can collapse to
+     * a single run with no separator ("Film SimulationClassic Chrome",
+     * "Highlights1"). Split those back into "Key: value".
+     */
+    internal fun splitGluedKeyValues(text: String): String =
+        text.lines().joinToString("\n") { raw ->
+            val line = raw.trim()
+            if (line.length > 60 || ':' in line || '|' in line) return@joinToString raw
+            val key = KNOWN_KEYS.firstOrNull { k ->
+                line.length > k.length && line.regionMatches(0, k, 0, k.length, ignoreCase = true) &&
+                    // The glued value starts right where the key ends: a digit, a
+                    // sign, or a capital. A space or lowercase letter means we cut
+                    // inside a longer key ("Film Sim|ulation", "Color| Chrome Effect").
+                    line[k.length].let { it.isDigit() || it == '-' || it == '+' || it.isUpperCase() }
+            } ?: return@joinToString raw
+            val value = line.substring(key.length).trim()
+            if (value.isEmpty() || value.length > 40) raw
+            else "${line.substring(0, key.length)}: $value"
+        }
+
     internal fun pairKeyValueLines(text: String): String {
-        val lines = text.lines().map { it.trim() }
+        val lines = splitGluedKeyValues(text).lines().map { it.trim() }
         val out = StringBuilder()
         var i = 0
         while (i < lines.size) {
