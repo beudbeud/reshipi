@@ -11,13 +11,14 @@ import com.beudbeud.fuji.model.WhiteBalance
 import kotlin.math.roundToInt
 
 /**
- * Parses the OCR text of a FujiStyle recipe card. The printed block is a
- * regular "Key: value | Key: value" list; each field is matched independently
- * so lost pipes or OCR line breaks don't derail the whole parse.
+ * Parses recipe text: FujiStyle card OCR ("Key: value | Key: value") or
+ * pasted Fuji X Weekly-style lines ("Grain Effect: Strong, Small",
+ * "White Balance: 5700K, +1 Red & +1 Blue"). Each field is matched
+ * independently so lost pipes or OCR line breaks don't derail the parse.
  */
 object FujiStyleCard {
 
-    fun parse(text: String): Recipe? {
+    fun parse(text: String, tag: String = "fujistyle"): Recipe? {
         fun field(keyPattern: String): String? =
             Regex("$keyPattern\\s*:\\s*([^|\\n]+)", RegexOption.IGNORE_CASE)
                 .find(text)?.groupValues?.get(1)?.trim()
@@ -29,6 +30,11 @@ object FujiStyleCard {
 
         val wbRaw = (field("White\\s+Balance") ?: "").uppercase()
         val kelvinMatch = Regex("(\\d{4,5})\\s*K").find(wbRaw)?.groupValues?.get(1)?.toIntOrNull()
+        // Shifts either as their own fields ("Red: -6") or inside the WB value
+        // ("+1 Red & +1 Blue" / "Red +2, Blue -2")
+        fun wbShift(color: String): Int? =
+            Regex("([+-]?\\d+)\\s*$color").find(wbRaw)?.groupValues?.get(1)?.toIntOrNull()
+                ?: Regex("$color\\s*:?\\s*([+-]?\\d+)").find(wbRaw)?.groupValues?.get(1)?.toIntOrNull()
         val whiteBalance = when {
             kelvinMatch != null || "KELVIN" in wbRaw -> WhiteBalance.KELVIN
             "DAYLIGHT" in wbRaw -> WhiteBalance.DAYLIGHT
@@ -59,8 +65,8 @@ object FujiStyleCard {
             filmSimulation = sim,
             whiteBalance = whiteBalance,
             kelvin = kelvinMatch,
-            wbShiftRed = (num("Red")?.roundToInt() ?: 0).coerceIn(-9, 9),
-            wbShiftBlue = (num("Blue")?.roundToInt() ?: 0).coerceIn(-9, 9),
+            wbShiftRed = (num("Red")?.roundToInt() ?: wbShift("RED") ?: 0).coerceIn(-9, 9),
+            wbShiftBlue = (num("Blue")?.roundToInt() ?: wbShift("BLUE") ?: 0).coerceIn(-9, 9),
             dynamicRange = dynamicRange,
             dRangePriority = strength(field("DR\\s+Priority")).let {
                 when (it) {
@@ -75,19 +81,24 @@ object FujiStyleCard {
             color = (num("Colou?r")?.roundToInt() ?: 0).coerceIn(-4, 4),
             sharpness = (num("Sharpness")?.roundToInt() ?: 0).coerceIn(-4, 4),
             noiseReduction = (num("High\\s+ISO\\s+NR")?.roundToInt() ?: 0).coerceIn(-4, 4),
-            grainEffect = strength(field("Grain\\s+Effect\\s*-?\\s*Roughness")),
-            grainSize = if ((field("Grain\\s+Effect\\s*-?\\s*Size") ?: "").contains("large", true)) {
-                GrainSize.LARGE
-            } else GrainSize.SMALL,
+            // Combined form "Grain Effect: Strong, Small" or split Roughness/Size fields
+            grainEffect = strength(
+                field("Grain\\s+Effect\\s*-?\\s*Roughness") ?: field("Grain\\s+Effect")
+            ),
+            grainSize = if (
+                (field("Grain\\s+Effect\\s*-?\\s*Size") ?: field("Grain\\s+Effect") ?: "")
+                    .contains("large", true)
+            ) GrainSize.LARGE else GrainSize.SMALL,
             colorChromeEffect = strength(field("Color\\s+Chrome\\s+Effect")),
-            colorChromeFxBlue = strength(field("Color\\s+FX\\s+Blue")),
+            colorChromeFxBlue = strength(field("Color\\s+(?:Chrome\\s+)?FX\\s+Blue")),
             clarity = (num("Clarity")?.roundToInt() ?: 0).coerceIn(-5, 5),
             // ISO is the only free-text field: when empty at the end of the block,
             // the regex can swallow the "Made with FUJISTYLE APP" footer line.
             iso = field("ISO")
                 ?.takeIf { it.isNotBlank() && !it.contains("fujistyle", true) && !it.contains("made with", true) }
                 ?: "Auto",
-            tags = listOf("fujistyle"),
+            exposureCompensation = field("Exposure\\s+Compensation")?.takeIf { it.isNotBlank() } ?: "0",
+            tags = listOf(tag),
         )
     }
 

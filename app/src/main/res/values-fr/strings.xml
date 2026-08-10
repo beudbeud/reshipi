@@ -5,6 +5,9 @@
     <string name="new_recipe">Nouvelle recette</string>
     <string name="new_from_photo">Nouvelle recette depuis une photo</string>
     <string name="import_fujistyle">Importer une carte FujiStyle</string>
+    <string name="import_text">Importer depuis du texte</string>
+    <string name="paste_recipe">Colle une recette (un réglage par ligne ou format FujiStyle)</string>
+    <string name="create">Créer</string>
     <string name="card_parse_failed">Impossible de lire une recette dans cette image</string>
     <string name="tags_label">Tags (séparés par des virgules)</string>
     <string name="tags">Tags</string>

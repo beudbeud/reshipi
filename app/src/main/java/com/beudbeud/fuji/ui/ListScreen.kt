@@ -32,6 +32,7 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -81,6 +82,7 @@ fun ListScreen(
     var favOnly by remember { mutableStateOf(false) }
     var menuOpen by remember { mutableStateOf(false) }
     var showLogs by remember { mutableStateOf(false) }
+    var showTextImport by remember { mutableStateOf(false) }
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
@@ -162,6 +164,42 @@ fun ListScreen(
         }
         .sortedBy { it.name.lowercase() }
 
+    if (showTextImport) {
+        var textInput by remember { mutableStateOf("") }
+        AlertDialog(
+            onDismissRequest = { showTextImport = false },
+            title = { Text(stringResource(R.string.import_text)) },
+            text = {
+                OutlinedTextField(
+                    value = textInput,
+                    onValueChange = { textInput = it },
+                    placeholder = { Text(stringResource(R.string.paste_recipe)) },
+                    minLines = 6,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = textInput.isNotBlank(),
+                    onClick = {
+                        val recipe = FujiStyleCard.parse(textInput, tag = "import")
+                        if (recipe == null) {
+                            scope.launch { snackbar.showSnackbar(context.getString(R.string.card_parse_failed)) }
+                        } else {
+                            showTextImport = false
+                            onCreateFromPhoto(recipe)
+                        }
+                    },
+                ) { Text(stringResource(R.string.create)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showTextImport = false }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            },
+        )
+    }
+
     if (showLogs) {
         var logText by remember { mutableStateOf(DebugLog.read()) }
         AlertDialog(
@@ -237,6 +275,10 @@ fun ListScreen(
                                         PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
                                     )
                                 },
+                            )
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.import_text)) },
+                                onClick = { menuOpen = false; showTextImport = true },
                             )
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.import_fujistyle)) },

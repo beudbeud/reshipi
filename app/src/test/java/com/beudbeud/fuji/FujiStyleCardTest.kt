@@ -66,6 +66,48 @@ class FujiStyleCardTest {
     }
 
     @Test
+    fun parsesFujiXWeeklyStyleText() {
+        val r = FujiStyleCard.parse(
+            """
+            Film Simulation: Classic Negative
+            Grain Effect: Strong, Small
+            Color Chrome Effect: Weak
+            Color Chrome FX Blue: Strong
+            White Balance: 5700K, +1 Red & +1 Blue
+            Dynamic Range: DR400
+            Highlight: +2.5
+            Shadow: -2
+            Color: +4
+            Sharpness: -2
+            High ISO NR: -4
+            Clarity: -3
+            ISO: Auto, up to ISO 6400
+            Exposure Compensation: 0 to -2/3 (typically)
+            """.trimIndent(),
+            tag = "import",
+        )!!
+        assertEquals(FilmSimulation.CLASSIC_NEG, r.filmSimulation)
+        assertEquals(Strength.STRONG, r.grainEffect)
+        assertEquals(GrainSize.SMALL, r.grainSize)
+        assertEquals(Strength.WEAK, r.colorChromeEffect)
+        assertEquals(Strength.STRONG, r.colorChromeFxBlue)
+        assertEquals(WhiteBalance.KELVIN, r.whiteBalance)
+        assertEquals(5700, r.kelvin)
+        assertEquals(1, r.wbShiftRed)
+        assertEquals(1, r.wbShiftBlue)
+        assertEquals(DynamicRange.DR400, r.dynamicRange)
+        assertEquals(2.5, r.highlight, 0.0)
+        assertEquals(-2.0, r.shadow, 0.0)
+        assertEquals(4, r.color)
+        assertEquals(-2, r.sharpness)
+        assertEquals(-4, r.noiseReduction)
+        assertEquals(-3, r.clarity)
+        assertEquals("Auto, up to ISO 6400", r.iso)
+        assertEquals("0 to -2/3 (typically)", r.exposureCompensation)
+        assertEquals(listOf("import"), r.tags)
+    }
+
+    @Test
     fun rejectsTextWithoutFilmSimulation() {
         assertNull(FujiStyleCard.parse("random text with no recipe"))
         assertNull(FujiStyleCard.parse("Film Simulation: SOMETHING UNKNOWN | Red: 1"))
