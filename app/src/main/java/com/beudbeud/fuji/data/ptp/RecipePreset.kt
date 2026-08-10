@@ -1,5 +1,6 @@
 package com.beudbeud.fuji.data.ptp
 
+import com.beudbeud.fuji.data.DebugLog
 import com.beudbeud.fuji.model.CAMERA_MODELS
 import com.beudbeud.fuji.model.DynamicRange
 import com.beudbeud.fuji.model.FilmSimulation
@@ -47,6 +48,8 @@ internal val WB_CODE = mapOf(
     WhiteBalance.INCANDESCENT to 0x0006,
     WhiteBalance.UNDERWATER to 0x0008,
     WhiteBalance.KELVIN to 0x8007,
+    // CUSTOM_1..3 are deliberately absent: their codes are unverified, and
+    // writing a guess would silently set the wrong white balance on the camera.
 )
 
 /** HighIsoNR uses a proprietary non-linear encoding (from Wireshark captures). */
@@ -89,7 +92,9 @@ fun Recipe.toPresetProps(): List<Pair<Int, ByteArray>> = buildList {
     add(0xD196 to packU16(colorChromeEffect.ordinal + 1))
     add(0xD197 to packU16(colorChromeFxBlue.ordinal + 1))
     add(0xD198 to packU16(1)) // SmoothSkin off (not modeled in Recipe)
-    add(0xD199 to packU16(WB_CODE.getValue(whiteBalance)))
+    // Unknown code (custom WB): leave the slot's existing white balance rather
+    // than write a guess. The send flow surfaces this as a warning.
+    WB_CODE[whiteBalance]?.let { add(0xD199 to packU16(it)) }
     if (whiteBalance == WhiteBalance.KELVIN && kelvin != null) {
         add(0xD19C to packU16(kelvin.coerceIn(2500, 10000)))
     }
@@ -125,7 +130,13 @@ fun recipeFromPresetProps(name: String, props: Map<Int, ByteArray>, cameraModel:
     val nrByCode = NR_ENCODE.entries.associate { (k, v) -> v to k }
 
     val sim = simByCode[u16(0xD192)] ?: FilmSimulation.PROVIA
-    val wb = wbByCode[u16(0xD199)] ?: WhiteBalance.AUTO
+    val wbCode = u16(0xD199)
+    // Log unmapped codes: this is how the custom-WB values get identified from
+    // a real camera instead of guessed.
+    if (wbCode != null && wbByCode[wbCode] == null) {
+        DebugLog.log("unknown WB code 0x${wbCode.toString(16).uppercase()} in preset \"$name\"")
+    }
+    val wb = wbByCode[wbCode] ?: WhiteBalance.AUTO
     // Grain: 1=off, 2=weak/small, 3=strong/small, 4=weak/large, 5=strong/large.
     // Some bodies keep the size while off (6=off/small, 7=off/large).
     val grainRaw = u16(0xD195) ?: 1

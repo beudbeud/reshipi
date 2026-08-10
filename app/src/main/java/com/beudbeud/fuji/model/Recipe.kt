@@ -100,6 +100,13 @@ enum class WhiteBalance(@StringRes val labelRes: Int) {
     INCANDESCENT(R.string.wb_incandescent),
     UNDERWATER(R.string.wb_underwater),
     KELVIN(R.string.wb_kelvin),
+
+    // Measured white balances stored in the camera. Their PTP codes are not
+    // confirmed on any body, so these are recorded in the recipe but never
+    // written to the camera — see WB_CODE / toPresetProps.
+    CUSTOM_1(R.string.wb_custom_1),
+    CUSTOM_2(R.string.wb_custom_2),
+    CUSTOM_3(R.string.wb_custom_3),
 }
 
 enum class DynamicRange(val label: String) { AUTO("Auto"), DR100("DR100"), DR200("DR200"), DR400("DR400") }

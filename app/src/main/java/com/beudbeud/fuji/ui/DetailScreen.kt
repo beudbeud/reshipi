@@ -218,7 +218,7 @@ fun DetailScreen(
     }
 
     if (showSend) {
-        SendToCameraDialog(recipe = recipe, onDismiss = { showSend = false })
+        SendToCameraDialog(recipe = recipe, repo = repo, onDismiss = { showSend = false })
     }
 
     if (showQr) {

@@ -72,6 +72,16 @@
     <string name="camera_reading">Reading camera presets…</string>
     <string name="camera_no_slots">No configured presets found on the camera (C1–C7 are empty).</string>
     <string name="import_selected">Import (%1$d)</string>
+    <string name="wb_custom_1">Custom 1</string>
+    <string name="wb_custom_2">Custom 2</string>
+    <string name="wb_custom_3">Custom 3</string>
+    <string name="camera_wb_custom_warning">Custom white balance is not written to the camera — set it by hand on the body.</string>
+    <string name="backup_slot_first">Back up the slot\'s current content first</string>
+    <string name="backup_slot_saved">Slot C%1$d backed up as “%2$s”</string>
+    <string name="camera_slots">My camera (C1–C7)</string>
+    <string name="slot_empty">Empty</string>
+    <string name="write_here">Write a recipe here</string>
+    <string name="refresh">Refresh</string>
     <string name="export_json">Export backup (ZIP)</string>
     <string name="import_json">Import backup</string>
     <string name="export_done">Recipes exported</string>

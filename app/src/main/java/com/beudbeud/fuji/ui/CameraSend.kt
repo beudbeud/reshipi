@@ -8,12 +8,14 @@ import android.content.IntentFilter
 import android.hardware.usb.UsbDevice
 import android.hardware.usb.UsbManager
 import android.os.Build
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -25,6 +27,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -32,7 +35,9 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.beudbeud.fuji.R
 import com.beudbeud.fuji.data.DebugLog
+import com.beudbeud.fuji.data.RecipeRepository
 import com.beudbeud.fuji.data.ptp.FujiCamera
+import com.beudbeud.fuji.data.ptp.recipeFromPresetProps
 import com.beudbeud.fuji.data.ptp.toPresetProps
 import com.beudbeud.fuji.model.Recipe
 import kotlinx.coroutines.Dispatchers
@@ -41,13 +46,17 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import kotlin.coroutines.resume
 
+/** Camera slot names are capped at 22 characters. */
+internal const val SLOT_NAME_MAX = 22
+
 @Composable
-fun SendToCameraDialog(recipe: Recipe, onDismiss: () -> Unit) {
+fun SendToCameraDialog(recipe: Recipe, repo: RecipeRepository, onDismiss: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var slot by remember { mutableIntStateOf(7) }
     var busy by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf<String?>(null) }
+    var backupFirst by remember { mutableStateOf(true) }
 
     AlertDialog(
         onDismissRequest = { if (!busy) onDismiss() },
@@ -65,6 +74,17 @@ fun SendToCameraDialog(recipe: Recipe, onDismiss: () -> Unit) {
                         )
                     }
                 }
+                // Writing a slot overwrites whatever was in it; keep a copy first.
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.clickable(enabled = !busy) { backupFirst = !backupFirst },
+                ) {
+                    Checkbox(checked = backupFirst, onCheckedChange = { backupFirst = it }, enabled = !busy)
+                    Text(
+                        stringResource(R.string.backup_slot_first),
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
                 status?.let {
                     Text(it, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 8.dp))
                 }
@@ -77,7 +97,7 @@ fun SendToCameraDialog(recipe: Recipe, onDismiss: () -> Unit) {
                     busy = true
                     status = context.getString(R.string.camera_writing)
                     scope.launch {
-                        val (ok, message) = sendRecipe(context, recipe, slot)
+                        val (ok, message) = sendRecipe(context, recipe, slot, repo.takeIf { backupFirst })
                         busy = false
                         if (ok) {
                             // Clean success: close and confirm with a toast
@@ -98,6 +118,20 @@ fun SendToCameraDialog(recipe: Recipe, onDismiss: () -> Unit) {
     )
 }
 
+/**
+ * Write [recipe] into slot [slot], backing the slot up into [repo] first.
+ * Returns a message to show, or null when it succeeded with nothing to report.
+ */
+internal suspend fun writeRecipeToSlot(
+    context: Context,
+    recipe: Recipe,
+    slot: Int,
+    repo: RecipeRepository,
+): String? {
+    val (ok, message) = sendRecipe(context, recipe, slot, repo)
+    return if (ok) null else message
+}
+
 /** Find the camera, get USB permission, open a PTP session. Throws with a user-facing message. */
 internal suspend fun connectFujiCamera(context: Context): FujiCamera {
     val manager = context.getSystemService(Context.USB_SERVICE) as UsbManager
@@ -115,9 +149,18 @@ internal suspend fun connectFujiCamera(context: Context): FujiCamera {
     }
 }
 
-/** Full send flow. Returns (cleanSuccess, message) — warnings keep the dialog open. */
-private suspend fun sendRecipe(context: Context, recipe: Recipe, slot: Int): Pair<Boolean, String> {
-    DebugLog.log("send \"${recipe.name}\" → C$slot")
+/**
+ * Full send flow. Returns (cleanSuccess, message) — warnings keep the dialog open.
+ * When [backupRepo] is given, the slot's current content is read and saved to the
+ * library before it gets overwritten.
+ */
+private suspend fun sendRecipe(
+    context: Context,
+    recipe: Recipe,
+    slot: Int,
+    backupRepo: RecipeRepository?,
+): Pair<Boolean, String> {
+    DebugLog.log("send \"${recipe.name}\" → C$slot (backup=${backupRepo != null})")
     return runCatching {
         val camera = connectFujiCamera(context)
         withContext(Dispatchers.IO) {
@@ -125,12 +168,32 @@ private suspend fun sendRecipe(context: Context, recipe: Recipe, slot: Int): Pai
                 if (0xD18C !in camera.supportedProperties()) {
                     return@withContext false to context.getString(R.string.camera_no_presets)
                 }
-                val result = camera.writePreset(slot, recipe.name.take(25), recipe.toPresetProps())
+                val notes = mutableListOf<String>()
+
+                if (backupRepo != null) {
+                    val existing = camera.readPresets(slot..slot).firstOrNull()
+                    // An empty slot has nothing worth keeping
+                    if (existing != null && existing.name.isNotBlank() && existing.props.isNotEmpty()) {
+                        val saved = recipeFromPresetProps(
+                            existing.name, existing.props, camera.modelName(),
+                        ).let { it.copy(tags = it.tags + "backup") }
+                        backupRepo.upsert(saved)
+                        DebugLog.log("backed up C$slot as \"${saved.name}\"")
+                        notes += context.getString(R.string.backup_slot_saved, slot, saved.name)
+                    }
+                }
+
+                val result = camera.writePreset(slot, recipe.name.take(SLOT_NAME_MAX), recipe.toPresetProps())
+                // A custom WB has no confirmed camera code, so it is never written
+                if (recipe.whiteBalance.name.startsWith("CUSTOM")) {
+                    notes += context.getString(R.string.camera_wb_custom_warning)
+                }
                 when {
                     !result.ok -> false to context.getString(R.string.camera_failed, result.warnings.joinToString())
-                    result.warnings.isEmpty() -> true to context.getString(R.string.camera_done, slot)
+                    result.warnings.isEmpty() && notes.isEmpty() ->
+                        true to context.getString(R.string.camera_done, slot)
                     else -> false to (context.getString(R.string.camera_done, slot) + "\n" +
-                        result.warnings.joinToString("\n"))
+                        (notes + result.warnings).joinToString("\n"))
                 }
             } finally {
                 camera.close()

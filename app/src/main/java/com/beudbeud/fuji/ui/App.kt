@@ -26,6 +26,7 @@ sealed interface Screen {
     data object Home : Screen
     data class Detail(val id: String) : Screen
     data class Edit(val id: String?) : Screen
+    data object CameraSlots : Screen
 }
 
 // Photo-first look: committed dark theme, warm silver accent, photos carry the color.
@@ -128,6 +129,7 @@ fun App(repo: RecipeRepository, sharedText: String? = null, sharedImage: android
                 onOpen = { screen = Screen.Detail(it) },
                 onAdd = { photoDraft = null; screen = Screen.Edit(null) },
                 onCreateFromPhoto = { photoDraft = it; screen = Screen.Edit(null) },
+                onOpenCameraSlots = { screen = Screen.CameraSlots },
             )
             is Screen.Detail -> {
                 val recipe = recipes.find { it.id == s.id }
@@ -143,6 +145,12 @@ fun App(repo: RecipeRepository, sharedText: String? = null, sharedImage: android
                     )
                 }
             }
+            Screen.CameraSlots -> CameraSlotsScreen(
+                recipes = recipes,
+                repo = repo,
+                onBack = { screen = Screen.Home },
+                onOpenRecipe = { screen = Screen.Detail(it) },
+            )
             is Screen.Edit -> EditScreen(
                 existing = if (s.id != null) recipes.find { it.id == s.id } else photoDraft,
                 repo = repo,

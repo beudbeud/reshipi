@@ -89,6 +89,7 @@ fun ListScreen(
     onOpen: (String) -> Unit,
     onAdd: () -> Unit,
     onCreateFromPhoto: (Recipe) -> Unit,
+    onOpenCameraSlots: () -> Unit,
 ) {
     var query by remember { mutableStateOf("") }
     var searching by remember { mutableStateOf(false) }
@@ -327,6 +328,10 @@ fun ListScreen(
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.import_text)) },
                                 onClick = { menuOpen = false; showTextImport = true },
+                            )
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.camera_slots)) },
+                                onClick = { menuOpen = false; onOpenCameraSlots() },
                             )
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.import_from_camera)) },
