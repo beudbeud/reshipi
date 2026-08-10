@@ -2,6 +2,7 @@ package com.beudbeud.fuji.ui
 
 import android.content.Context
 import android.net.Uri
+import com.beudbeud.fuji.data.CardCrop
 import com.beudbeud.fuji.data.FujiExif
 import com.beudbeud.fuji.data.FujiStyleCard
 import com.beudbeud.fuji.data.RecipeRepository
@@ -34,7 +35,18 @@ internal fun importRecipeImage(
             .process(InputImage.fromFilePath(context, uri))
             .addOnSuccessListener { ocr ->
                 val recipe = FujiStyleCard.parse(ocr.text)
-                onResult(recipe?.copy(photos = listOf(repo.addPhoto(uri))))
+                if (recipe == null) {
+                    onResult(null)
+                } else {
+                    // Keep just the example photo from the card; a gray-placeholder
+                    // card yields null → no photo, recipe shows its gradient tile.
+                    val cropped = CardCrop.extractPhoto(context, uri)
+                    val photos = when {
+                        cropped != null -> listOf(repo.addPhotoBytes(cropped))
+                        else -> emptyList()
+                    }
+                    onResult(recipe.copy(photos = photos))
+                }
             }
             .addOnFailureListener { onResult(null) }
     }.onFailure { onResult(null) }
