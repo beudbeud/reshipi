@@ -148,6 +148,40 @@ class FujiStyleCardTest {
     }
 
     @Test
+    fun parsesShutterGrooveDialect() {
+        // Extracted from a real shuttergroove.com recipe page
+        val r = FujiStyleCard.parse(
+            """
+            Film Simulation: Acros+G Filter
+            Dynamic Range: DR400
+            Highlight: +3
+            Shadow: +2
+            Noise Reduction: -4
+            Sharpening: -2
+            Clarity: 0
+            Grain Effect: Off
+            Color Chrome Effect: Strong
+            Color Chrome FX Blue: Strong
+            Monochromatic Color: WC: +0, MG: 0
+            White Balance: Auto
+            ISO: Auto 3200
+            """.trimIndent(),
+            tag = "web",
+        )!!
+        assertEquals(FilmSimulation.ACROS_G, r.filmSimulation)
+        assertEquals(DynamicRange.DR400, r.dynamicRange)
+        assertEquals(3.0, r.highlight, 0.0)
+        assertEquals(2.0, r.shadow, 0.0)
+        assertEquals(-4, r.noiseReduction)
+        assertEquals(-2, r.sharpness)
+        assertEquals(Strength.OFF, r.grainEffect)
+        assertEquals(Strength.STRONG, r.colorChromeEffect)
+        assertEquals(Strength.STRONG, r.colorChromeFxBlue)
+        assertEquals(WhiteBalance.AUTO, r.whiteBalance)
+        assertEquals("Auto 3200", r.iso)
+    }
+
+    @Test
     fun rejectsTextWithoutFilmSimulation() {
         assertNull(FujiStyleCard.parse("random text with no recipe"))
         assertNull(FujiStyleCard.parse("Film Simulation: SOMETHING UNKNOWN | Red: 1"))

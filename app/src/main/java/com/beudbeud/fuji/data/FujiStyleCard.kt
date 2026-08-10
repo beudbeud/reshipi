@@ -80,7 +80,8 @@ object FujiStyleCard {
             shadow = (num("Shadow") ?: 0.0).halfSteps().coerceIn(-2.0, 4.0),
             color = (num("Colou?r")?.roundToInt() ?: 0).coerceIn(-4, 4),
             sharpness = ((num("Sharpness") ?: num("Sharpening"))?.roundToInt() ?: 0).coerceIn(-4, 4),
-            noiseReduction = (num("High\\s+ISO\\s+NR")?.roundToInt() ?: 0).coerceIn(-4, 4),
+            noiseReduction = ((num("High\\s+ISO\\s+NR") ?: num("Noise\\s+Reduction"))?.roundToInt() ?: 0)
+                .coerceIn(-4, 4),
             // Combined form "Grain Effect: Strong, Small" or split Roughness/Size fields
             grainEffect = strength(
                 field("Grain\\s+Effect\\s*-?\\s*Roughness") ?: field("Grain\\s+Effect")
