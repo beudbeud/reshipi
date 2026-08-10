@@ -21,11 +21,13 @@ class FujiCamera private constructor(
     private val iface: UsbInterface,
     private val epIn: UsbEndpoint,
     private val epOut: UsbEndpoint,
+    private val diag: String,
 ) {
     companion object {
         const val FUJI_VENDOR_ID = 0x04CB
-        private const val TIMEOUT_MS = 5000
-        private const val READ_CHUNK = 64 * 1024
+        private const val TIMEOUT_MS = 8000
+        // 16KB: bulkTransfer's safe maximum on all API levels / host controllers
+        private const val READ_CHUNK = 16 * 1024
         private const val PRESET_SLOT = 0xD18C
         private const val PRESET_NAME = 0xD18D
 
@@ -54,28 +56,41 @@ class FujiCamera private constructor(
                 connection.close()
                 throw IOException("No bulk endpoints found")
             }
-            return FujiCamera(connection, iface, epIn, epOut)
+            val diag = "if=${iface.interfaceClass}/${iface.interfaceSubclass}" +
+                " in=0x${epIn.address.toString(16)} out=0x${epOut.address.toString(16)}" +
+                " nIf=${device.interfaceCount}"
+            return FujiCamera(connection, iface, epIn, epOut, diag)
         }
     }
 
     private var transactionId = 0
     private var sessionOpen = false
 
+    private fun opName(opcode: Int) = "op 0x${opcode.toString(16)}"
+
     private fun send(type: Int, code: Int, txId: Int, params: IntArray, data: ByteArray) {
         val packet = packContainer(type, code, txId, params, data)
         val sent = connection.bulkTransfer(epOut, packet, packet.size, TIMEOUT_MS)
-        if (sent != packet.size) throw IOException("USB write failed ($sent/${packet.size})")
+        if (sent != packet.size) {
+            throw IOException("USB write failed ($sent/${packet.size}) ${opName(code)} [$diag]")
+        }
     }
 
-    private fun recv(): PtpContainer {
+    private fun recv(opcode: Int): PtpContainer {
         val buf = ByteArray(READ_CHUNK)
-        val n = connection.bulkTransfer(epIn, buf, buf.size, TIMEOUT_MS)
-        if (n < 12) throw IOException("USB read failed ($n)")
+        // The first read can hit a transient -1 while the camera settles; retry briefly.
+        var n = -1
+        for (attempt in 1..3) {
+            n = connection.bulkTransfer(epIn, buf, buf.size, TIMEOUT_MS)
+            if (n >= 12) break
+            Thread.sleep(300)
+        }
+        if (n < 12) throw IOException("USB read failed ($n) ${opName(opcode)} [$diag]")
         var data = buf.copyOf(n)
         val total = containerLength(data)
         while (data.size < total) {
             val m = connection.bulkTransfer(epIn, buf, buf.size, TIMEOUT_MS)
-            if (m <= 0) throw IOException("USB read continuation failed ($m)")
+            if (m <= 0) throw IOException("USB read continuation failed ($m) ${opName(opcode)} [$diag]")
             data += buf.copyOf(m)
         }
         return unpackContainer(data)
@@ -85,11 +100,11 @@ class FujiCamera private constructor(
     private fun sendCommand(opcode: Int, params: IntArray = IntArray(0)): Pair<Int, ByteArray> {
         val txId = ++transactionId
         send(PtpContainerType.COMMAND, opcode, txId, params, ByteArray(0))
-        var resp = recv()
+        var resp = recv(opcode)
         var data = ByteArray(0)
         if (resp.type == PtpContainerType.DATA) {
             data = resp.data
-            resp = recv()
+            resp = recv(opcode)
         }
         if (resp.type != PtpContainerType.RESPONSE) throw IOException("Expected RESPONSE, got ${resp.type}")
         return resp.code to data
@@ -100,7 +115,7 @@ class FujiCamera private constructor(
         val txId = ++transactionId
         send(PtpContainerType.COMMAND, opcode, txId, params, ByteArray(0))
         send(PtpContainerType.DATA, opcode, txId, IntArray(0), data)
-        val resp = recv()
+        val resp = recv(opcode)
         if (resp.type != PtpContainerType.RESPONSE) throw IOException("Expected RESPONSE, got ${resp.type}")
         return resp.code
     }
