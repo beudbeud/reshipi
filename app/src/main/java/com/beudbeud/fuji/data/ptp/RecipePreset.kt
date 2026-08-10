@@ -190,6 +190,15 @@ fun Recipe.patchProfile(base: ByteArray): ByteArray {
     require(numParams in 8..64 && off >= 2) { "Unexpected profile layout (${out.size}B/$numParams params)" }
     fun set(idx: Int, v: Int) = bb.putInt(off + idx * 4, v)
 
+    // The parameter indices below were confirmed on an X100VI. If another body
+    // orders them differently the conversion renders wrong, so log the layout and
+    // the values we are about to overwrite — enough to spot a mismatch from a report.
+    DebugLog.log(
+        "patchProfile: ${out.size}B, $numParams params, off=$off, before=" +
+            listOf(6, 7, 8, 9, 12, 16, 17, 18, 19)
+                .joinToString(" ") { "[$it]=${bb.getInt(off + it * 4)}" }
+    )
+
     set(8, FILM_SIM_CODE.getValue(filmSimulation))
     when (dynamicRange) {
         DynamicRange.DR100 -> set(6, 100)
