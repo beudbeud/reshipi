@@ -176,7 +176,11 @@ class FujiCamera private constructor(
         r.u16array() // operations
         r.u16array() // events
         val props = r.u16array().toSet()
-        DebugLog.log("DeviceInfo: ${props.size} properties, presetProps=${0xD18C in props}")
+        DebugLog.log(
+            "DeviceInfo: ${props.size} properties, presetProps=${0xD18C in props}, " +
+                "rawProfile=${FujiProp.RAW_CONV_PROFILE in props}, " +
+                "rawTrigger=${FujiProp.START_RAW_CONVERSION in props}"
+        )
         return props
     }
 
@@ -333,12 +337,22 @@ class FujiCamera private constructor(
 
     /** Current conversion profile (0xD185) — requires a RAF loaded first. */
     fun getProfile(): ByteArray {
-        val (code, data) = sendCommand(PtpOp.GET_DEVICE_PROP_VALUE, intArrayOf(FujiProp.RAW_CONV_PROFILE))
-        if (code != PtpResp.OK || data.isEmpty()) {
-            throw IOException("getProfile failed: 0x${code.toString(16)} (${data.size} bytes)")
+        // The camera has just swallowed a RAF of tens of megabytes and has to
+        // ingest it before a conversion profile exists; asking immediately after
+        // the upload answers 0x2002. Poll rather than fail on the first try.
+        var code = 0
+        var data = ByteArray(0)
+        for (attempt in 1..10) {
+            sendCommand(PtpOp.GET_DEVICE_PROP_VALUE, intArrayOf(FujiProp.RAW_CONV_PROFILE)).let {
+                code = it.first; data = it.second
+            }
+            if (code == PtpResp.OK && data.isNotEmpty()) {
+                DebugLog.log("getProfile: ${data.size} bytes (attempt $attempt)")
+                return data
+            }
+            Thread.sleep(500)
         }
-        DebugLog.log("getProfile: ${data.size} bytes")
-        return data
+        throw IOException("getProfile failed: 0x${code.toString(16)} (${data.size} bytes)")
     }
 
     fun setProfile(profile: ByteArray) {

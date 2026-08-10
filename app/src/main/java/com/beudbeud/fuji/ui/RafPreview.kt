@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import com.beudbeud.fuji.R
 import com.beudbeud.fuji.data.DebugLog
 import com.beudbeud.fuji.data.RecipeRepository
+import com.beudbeud.fuji.data.ptp.FujiProp
 import com.beudbeud.fuji.data.ptp.patchProfile
 import com.beudbeud.fuji.model.Recipe
 import kotlinx.coroutines.Dispatchers
@@ -65,6 +66,11 @@ fun RafPreviewDialog(recipe: Recipe, repo: RecipeRepository, onDismiss: () -> Un
                 val camera = connectFujiCamera(context)
                 withContext(Dispatchers.IO) {
                     try {
+                        // If the body does not advertise the X RAW Studio properties,
+                        // no amount of retrying will produce a conversion.
+                        if (FujiProp.RAW_CONV_PROFILE !in camera.supportedProperties()) {
+                            throw java.io.IOException(context.getString(R.string.raf_unsupported))
+                        }
                         camera.sendRaf(raf)
                         status = context.getString(R.string.raf_developing)
                         camera.setProfile(recipe.patchProfile(camera.getProfile()))

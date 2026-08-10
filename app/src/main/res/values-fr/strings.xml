@@ -130,4 +130,5 @@
     <string name="sort_recent">Récentes</string>
     <string name="sort_simulation">Par pellicule</string>
     <string name="filter_all">Toutes</string>
+    <string name="raf_unsupported">Ce boîtier ne déclare pas la conversion RAW interne.</string>
 </resources>
