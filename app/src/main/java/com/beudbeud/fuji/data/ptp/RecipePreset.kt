@@ -48,12 +48,12 @@ internal val WB_CODE = mapOf(
     WhiteBalance.INCANDESCENT to 0x0006,
     WhiteBalance.UNDERWATER to 0x0008,
     WhiteBalance.KELVIN to 0x8007,
-    // Confirmed on X-T30 III (2026-08): a slot set to Custom 1 reads back 0x8008.
+    // Confirmed on X-T30 III (2026-08) by reading back slots set to each mode.
     WhiteBalance.CUSTOM_1 to 0x8008,
-    // CUSTOM_2/CUSTOM_3 most likely continue the sequence (0x8009, 0x800A) but
-    // are unconfirmed, so they are left out: writing a guess would silently set
-    // the wrong white balance. Recipes can still record them; the send flow
-    // skips the property and says so.
+    WhiteBalance.CUSTOM_2 to 0x8009,
+    // CUSTOM_3 almost certainly continues the sequence (0x800A) but has not been
+    // read back, so it is left out: writing a guess would silently set the wrong
+    // white balance. Recipes can still record it; the send flow says it skipped it.
 )
 
 /** HighIsoNR uses a proprietary non-linear encoding (from Wireshark captures). */
