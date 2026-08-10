@@ -202,4 +202,32 @@ class WebPagesTest {
         assertEquals(Strength.OFF, r.colorChromeFxBlue)               // "Color Chrome FX:" (no "Blue")
         assertEquals("Auto up to 6400", r.iso)
     }
+
+    @Test
+    fun ahradwani_startWithKeyBracketQualifiersAndKelvinPrefix() {
+        val recipes = parsePage("ahradwani.html")
+        assertTrue("expected >=40 recipes, got ${recipes.size}", recipes.size >= 40)
+
+        val sand = recipes.first { it.name == "Sand Storm" }   // "[Name: Sand Storm ]"
+        assertEquals(FilmSimulation.CLASSIC_NEG, sand.filmSimulation)  // "StartWith: Classic Neg."
+        assertEquals(WhiteBalance.KELVIN, sand.whiteBalance)
+        assertEquals(7000, sand.kelvin)                        // "K7000" prefix form
+        assertEquals(4, sand.wbShiftRed)
+        assertEquals(-4, sand.wbShiftBlue)
+        assertEquals(DynamicRange.DR100, sand.dynamicRange)    // bare "100"
+        assertEquals(-2.0, sand.highlight, 0.0)                // "Tone Curve (Highlights/Shadows): H: -2, S: +1"
+        assertEquals(1.0, sand.shadow, 0.0)
+        assertEquals(3, sand.color)
+        assertEquals(0, sand.sharpness)
+        assertEquals(-1, sand.noiseReduction)
+        assertEquals(Strength.STRONG, sand.grainEffect)        // "Grain [effect, Size] : Strong, small"
+        assertEquals(GrainSize.SMALL, sand.grainSize)
+        assertEquals(Strength.STRONG, sand.colorChromeEffect)
+        assertEquals(Strength.STRONG, sand.colorChromeFxBlue)
+
+        val eternal = recipes.first { it.name == "Light Eternal" }
+        assertEquals(DynamicRange.DR400, eternal.dynamicRange) // "400%"
+        assertEquals(Strength.WEAK, eternal.colorChromeFxBlue)
+        assertEquals(-1, eternal.sharpness)
+    }
 }

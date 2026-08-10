@@ -22,8 +22,12 @@ object FujiStyleCard {
     // A dash glued to a digit is a minus sign ("Highlights -1"), not a separator.
     private const val SEP = "\\s*(?::|\\s[–-]\\s)\\s*"
 
-    // "Film Simulation", "Base Film Simulation", or the abbreviated "Film Sim"
-    private const val SIM_KEY_PAT = "(?:Base\\s+)?Film\\s+Sim(?:ulation)?"
+    /** Optional "[...]"/"(...)" qualifier some sites put between key and separator. */
+    private const val QUALIFIER = "(?:\\s*[\\[(][^\\])\\n]{0,40}[\\])])?"
+
+    // "Film Simulation", "Base Film Simulation", the abbreviated "Film Sim", or
+    // "StartWith:" (recipes phrased as "start from X, then change these")
+    private const val SIM_KEY_PAT = "(?:(?:Base\\s+)?Film\\s+Sim(?:ulation)?|Start\\s*With)"
     internal val SIM_KEY = Regex("$SIM_KEY_PAT$SEP", RegexOption.IGNORE_CASE)
 
     /**
@@ -44,9 +48,16 @@ object FujiStyleCard {
         return recipes
     }
 
-    /** Best-effort recipe name: nearest preceding short line that isn't a setting. */
-    private fun headingBefore(text: String, offset: Int): String? =
-        text.take(offset).lines().map { it.trim() }
+    /** Best-effort recipe name: an explicit "[Name: X]" tag, else the nearest
+     *  preceding short line that isn't a setting. */
+    private fun headingBefore(text: String, offset: Int): String? {
+        val before = text.take(offset)
+        Regex("\\[?\\s*Name\\s*:\\s*([^\\]\\n]+)", RegexOption.IGNORE_CASE)
+            .findAll(before).lastOrNull()
+            ?.groupValues?.get(1)?.trim()?.trim(']')?.trim()
+            ?.takeIf { it.isNotBlank() && it.length <= 60 }
+            ?.let { return it }
+        return before.lines().map { it.trim() }
             .lastOrNull { line ->
                 line.length in 3..60 && ':' !in line && '|' !in line &&
                     line.count { it.isLetter() } >= 3 &&
@@ -56,10 +67,13 @@ object FujiStyleCard {
             ?.replace(Regex("^\\d+[.)]\\s*"), "")
             ?.replace(Regex("(?i)\\s*(jpeg\\s*)?settings$"), "")
             ?.trim()?.takeIf { it.isNotBlank() }
+    }
 
     fun parse(text: String, tag: String = "fujistyle"): Recipe? {
+        // A key may carry a parenthesized/bracketed qualifier before the
+        // separator: "Grain [effect, Size] :", "Tone Curve (Highlights/Shadows):"
         fun field(keyPattern: String): String? =
-            Regex("$keyPattern$SEP([^|\\n]+)", RegexOption.IGNORE_CASE)
+            Regex("$keyPattern$QUALIFIER$SEP([^|\\n]+)", RegexOption.IGNORE_CASE)
                 .find(text)?.groupValues?.get(1)?.trim()
 
         fun num(keyPattern: String): Double? =
@@ -73,7 +87,9 @@ object FujiStyleCard {
             .lastOrNull() ?: return null
 
         val wbRaw = (field("White\\s+Balance") ?: "").uppercase()
-        val kelvinMatch = Regex("(\\d{4,5})\\s*K").find(wbRaw)?.groupValues?.get(1)?.toIntOrNull()
+        // "5700K" or the prefix form "K7000"
+        val kelvinMatch = (Regex("(\\d{4,5})\\s*K").find(wbRaw)
+            ?: Regex("\\bK\\s*(\\d{4,5})").find(wbRaw))?.groupValues?.get(1)?.toIntOrNull()
         // Shifts as their own fields ("Red: -6"), inside the WB value
         // ("+1 Red & +1 Blue"), or in a "White Balance Shift: R +2, B -2" field
         val shiftRaw = (field("White\\s+Balance\\s+Shift") ?: "").uppercase()
