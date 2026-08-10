@@ -35,6 +35,8 @@ import com.beudbeud.fuji.data.RafFile
 import com.beudbeud.fuji.data.RecipeRepository
 import com.beudbeud.fuji.data.ptp.FujiProp
 import com.beudbeud.fuji.data.ptp.patchProfile
+import com.beudbeud.fuji.data.ptp.profileDump
+import com.beudbeud.fuji.data.ptp.profileParams
 import com.beudbeud.fuji.model.Recipe
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -99,7 +101,22 @@ fun RafPreviewDialog(recipe: Recipe, repo: RecipeRepository, onDismiss: () -> Un
                         }
                         camera.sendRaf(raf)
                         status = context.getString(R.string.raf_developing)
-                        camera.setProfile(recipe.patchProfile(camera.getProfile()))
+                        val patched = recipe.patchProfile(camera.getProfile())
+                        DebugLog.log("patchProfile out: ${profileDump(patched)}")
+                        camera.setProfile(patched)
+                        // Read it straight back: slots the camera rejected, ignored
+                        // or clamped are the ones our index map has wrong.
+                        runCatching {
+                            val after = profileParams(camera.getProfile())
+                            val sent = profileParams(patched)
+                            val drift = sent.indices
+                                .filter { it < after.size && after[it] != sent[it] }
+                                .joinToString(" ") { "$it: sent=${sent[it]} kept=${after[it]}" }
+                            DebugLog.log(
+                                if (drift.isEmpty()) "profile readback: identical"
+                                else "profile readback drift — $drift"
+                            )
+                        }
                         camera.triggerConversion()
                         val jpeg = camera.waitForResult()
                         status = context.getString(R.string.raf_downloading)

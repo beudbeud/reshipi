@@ -182,6 +182,23 @@ fun recipeFromPresetProps(name: String, props: Map<Int, ByteArray>, cameraModel:
  * ends with numParams (u16 at offset 0) int32 fields. Untouched fields keep
  * the camera's sentinels so it falls back to the RAF's shooting values.
  */
+/**
+ * The conversion profile's parameter array. The layout is a header of unknown
+ * content followed by [numParams] little-endian ints; only the tail is decoded.
+ */
+fun profileParams(profile: ByteArray): List<Int> {
+    if (profile.size < 2) return emptyList()
+    val bb = java.nio.ByteBuffer.wrap(profile).order(java.nio.ByteOrder.LITTLE_ENDIAN)
+    val n = bb.getShort(0).toInt() and 0xFFFF
+    val off = profile.size - n * 4
+    if (n !in 8..64 || off < 2) return emptyList()
+    return (0 until n).map { bb.getInt(off + it * 4) }
+}
+
+/** "0=1 1=0 2=400 …" — every slot, for correlating the layout against known settings. */
+fun profileDump(profile: ByteArray): String =
+    profileParams(profile).mapIndexed { i, v -> "$i=$v" }.joinToString(" ")
+
 fun Recipe.patchProfile(base: ByteArray): ByteArray {
     val out = base.copyOf()
     val bb = java.nio.ByteBuffer.wrap(out).order(java.nio.ByteOrder.LITTLE_ENDIAN)
@@ -193,11 +210,7 @@ fun Recipe.patchProfile(base: ByteArray): ByteArray {
     // The parameter indices below were confirmed on an X100VI. If another body
     // orders them differently the conversion renders wrong, so log the layout and
     // the values we are about to overwrite — enough to spot a mismatch from a report.
-    DebugLog.log(
-        "patchProfile: ${out.size}B, $numParams params, off=$off, before=" +
-            listOf(6, 7, 8, 9, 12, 16, 17, 18, 19)
-                .joinToString(" ") { "[$it]=${bb.getInt(off + it * 4)}" }
-    )
+    DebugLog.log("patchProfile in : ${out.size}B/$numParams params — ${profileDump(base)}")
 
     set(8, FILM_SIM_CODE.getValue(filmSimulation))
     when (dynamicRange) {
