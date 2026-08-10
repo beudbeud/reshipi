@@ -4,6 +4,7 @@ import com.beudbeud.fuji.data.ptp.packPtpString
 import com.beudbeud.fuji.data.ptp.parsePtpString
 import com.beudbeud.fuji.data.ptp.patchProfile
 import com.beudbeud.fuji.data.ptp.recipeFromPresetProps
+import com.beudbeud.fuji.data.ptp.WB_CODE
 import com.beudbeud.fuji.data.ptp.packU16
 import com.beudbeud.fuji.data.ptp.toPresetProps
 import com.beudbeud.fuji.model.DynamicRange
@@ -116,13 +117,18 @@ class RecipePresetTest {
 
     @Test
     fun customWhiteBalance() {
-        // Codes read back off an X-T30 III with slots set to Custom 1 and Custom 2.
-        for ((wb, code) in listOf(WhiteBalance.CUSTOM_1 to 0x8008, WhiteBalance.CUSTOM_2 to 0x8009)) {
+        // Codes read back off an X-T30 III with a slot set to each custom mode in turn.
+        val codes = listOf(
+            WhiteBalance.CUSTOM_1 to 0x8008,
+            WhiteBalance.CUSTOM_2 to 0x8009,
+            WhiteBalance.CUSTOM_3 to 0x800A,
+        )
+        for ((wb, code) in codes) {
             assertEquals(code.toShort().toInt(), Recipe(name = "C", whiteBalance = wb).toPresetProps().value(0xD199))
             assertEquals(wb, recipeFromPresetProps("C", mapOf(0xD199 to packU16(code)), "X-T30 III").whiteBalance)
         }
-        // Custom 3 has no confirmed code: the property is skipped rather than guessed.
-        assertNull(Recipe(name = "C", whiteBalance = WhiteBalance.CUSTOM_3).toPresetProps().value(0xD199))
+        // Every white balance the UI offers must now have a camera code.
+        assertNull(WhiteBalance.entries.firstOrNull { it !in WB_CODE })
     }
 
     @Test
