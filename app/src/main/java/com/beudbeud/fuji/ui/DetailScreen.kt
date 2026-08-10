@@ -17,6 +17,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Favorite
@@ -63,6 +64,7 @@ fun DetailScreen(
 ) {
     var confirmDelete by remember { mutableStateOf(false) }
     var fullPhoto by remember { mutableStateOf<String?>(null) }
+    var showSend by remember { mutableStateOf(false) }
     val gen = recipe.generation
     val context = LocalContext.current
 
@@ -83,6 +85,9 @@ fun DetailScreen(
                             tint = if (recipe.favorite) MaterialTheme.colorScheme.primary
                             else MaterialTheme.colorScheme.onSurfaceVariant,
                         )
+                    }
+                    IconButton(onClick = { showSend = true }) {
+                        Icon(Icons.AutoMirrored.Filled.Send, stringResource(R.string.send_to_camera))
                     }
                     IconButton(onClick = { shareRecipe(context, recipe) }) {
                         Icon(Icons.Default.Share, stringResource(R.string.share))
@@ -159,6 +164,10 @@ fun DetailScreen(
             }
             Spacer(Modifier.height(32.dp))
         }
+    }
+
+    if (showSend) {
+        SendToCameraDialog(recipe = recipe, onDismiss = { showSend = false })
     }
 
     if (confirmDelete) {
