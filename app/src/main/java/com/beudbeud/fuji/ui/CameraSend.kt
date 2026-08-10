@@ -77,8 +77,15 @@ fun SendToCameraDialog(recipe: Recipe, onDismiss: () -> Unit) {
                     busy = true
                     status = context.getString(R.string.camera_writing)
                     scope.launch {
-                        status = sendRecipe(context, recipe, slot)
+                        val (ok, message) = sendRecipe(context, recipe, slot)
                         busy = false
+                        if (ok) {
+                            // Clean success: close and confirm with a toast
+                            android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_SHORT).show()
+                            onDismiss()
+                        } else {
+                            status = message
+                        }
                     }
                 },
             ) { Text(stringResource(R.string.send)) }
@@ -108,22 +115,22 @@ internal suspend fun connectFujiCamera(context: Context): FujiCamera {
     }
 }
 
-/** Full send flow: find camera, get permission, write preset. Returns a status message. */
-private suspend fun sendRecipe(context: Context, recipe: Recipe, slot: Int): String {
+/** Full send flow. Returns (cleanSuccess, message) — warnings keep the dialog open. */
+private suspend fun sendRecipe(context: Context, recipe: Recipe, slot: Int): Pair<Boolean, String> {
     DebugLog.log("send \"${recipe.name}\" → C$slot")
     return runCatching {
         val camera = connectFujiCamera(context)
         withContext(Dispatchers.IO) {
             try {
                 if (0xD18C !in camera.supportedProperties()) {
-                    return@withContext context.getString(R.string.camera_no_presets)
+                    return@withContext false to context.getString(R.string.camera_no_presets)
                 }
                 val result = camera.writePreset(slot, recipe.name.take(25), recipe.toPresetProps())
                 when {
-                    !result.ok -> context.getString(R.string.camera_failed, result.warnings.joinToString())
-                    result.warnings.isEmpty() -> context.getString(R.string.camera_done, slot)
-                    else -> context.getString(R.string.camera_done, slot) + "\n" +
-                        result.warnings.joinToString("\n")
+                    !result.ok -> false to context.getString(R.string.camera_failed, result.warnings.joinToString())
+                    result.warnings.isEmpty() -> true to context.getString(R.string.camera_done, slot)
+                    else -> false to (context.getString(R.string.camera_done, slot) + "\n" +
+                        result.warnings.joinToString("\n"))
                 }
             } finally {
                 camera.close()
@@ -131,7 +138,7 @@ private suspend fun sendRecipe(context: Context, recipe: Recipe, slot: Int): Str
         }
     }.getOrElse {
         DebugLog.log("send failed: ${it.message ?: it.javaClass.simpleName}")
-        context.getString(R.string.camera_failed, it.message ?: it.javaClass.simpleName)
+        false to context.getString(R.string.camera_failed, it.message ?: it.javaClass.simpleName)
     }
 }
 
