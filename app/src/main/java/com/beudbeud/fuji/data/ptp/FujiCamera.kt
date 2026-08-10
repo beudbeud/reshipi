@@ -360,6 +360,32 @@ class FujiCamera private constructor(
         if (code != PtpResp.OK) throw IOException("setProfile failed: 0x${code.toString(16)}")
     }
 
+    /**
+     * Write [candidates] one at a time into parameter [index] and report which
+     * ones survive a read back. The camera silently clamps values it dislikes,
+     * so this is the only way to learn a parameter's accepted range. Leaves the
+     * profile set to [profile]; each probe is a round trip of a few milliseconds.
+     */
+    fun probeProfileIndex(profile: ByteArray, index: Int, candidates: List<Int>): List<Pair<Int, Int>> {
+        val params = profileParams(profile)
+        require(index in params.indices) { "index $index outside ${params.size} params" }
+        val off = profile.size - params.size * 4
+        val results = candidates.map { candidate ->
+            val trial = profile.copyOf()
+            java.nio.ByteBuffer.wrap(trial).order(java.nio.ByteOrder.LITTLE_ENDIAN)
+                .putInt(off + index * 4, candidate)
+            setProfile(trial)
+            candidate to (profileParams(getProfile()).getOrNull(index) ?: Int.MIN_VALUE)
+        }
+        setProfile(profile) // leave the caller's profile in place
+        DebugLog.log(
+            "probe [$index]: " + results.joinToString(" ") { (sent, kept) ->
+                if (sent == kept) "$sent=OK" else "$sent->$kept"
+            }
+        )
+        return results
+    }
+
     fun triggerConversion() {
         val code = sendDataCommand(PtpOp.SET_DEVICE_PROP_VALUE, intArrayOf(FujiProp.START_RAW_CONVERSION), packU16(0))
         if (code != PtpResp.OK) throw IOException("StartRawConversion failed: 0x${code.toString(16)}")

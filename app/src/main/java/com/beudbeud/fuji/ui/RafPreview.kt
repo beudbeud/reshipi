@@ -116,6 +116,12 @@ fun RafPreviewDialog(recipe: Recipe, repo: RecipeRepository, onDismiss: () -> Un
                                 if (drift.isEmpty()) "profile readback: identical"
                                 else "profile readback drift — $drift"
                             )
+                            // A clamped slot means our map is wrong about it. Ask the
+                            // camera directly what it will take there, rather than
+                            // guessing one value per round trip with the user.
+                            sent.indices
+                                .filter { it < after.size && after[it] != sent[it] }
+                                .forEach { camera.probeProfileIndex(patched, it, PROBE_VALUES) }
                         }
                         camera.triggerConversion()
                         val jpeg = camera.waitForResult()
@@ -208,3 +214,7 @@ private fun exifRotation(jpeg: ByteArray): Float = runCatching {
         else -> 0f
     }
 }.getOrDefault(0f)
+
+/** Small ordinals first, then the preset-space white balance codes. */
+private val PROBE_VALUES =
+    (0..12).toList() + listOf(0x8001, 0x8002, 0x8003, 0x8006, 0x8007, 0x8008)
