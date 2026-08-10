@@ -304,6 +304,37 @@ class FujiStyleCardTest {
     }
 
     @Test
+    fun parsesGermanLocalizedCard() {
+        // Real FujiStyle card exported with a German phone locale: English keys,
+        // German strength/size words ("Schwach" = weak, "Klein" = small)
+        val r = FujiStyleCard.parse(
+            "#Nostalgic Golden Hour\n" +
+                "Film Simulation: CLASSIC Neg. | White Balance: AUTO | Red: 2 | Blue: -5 | " +
+                "Dynamic Range: DR400 | Grain Effect - Roughness: Schwach | " +
+                "Grain Effect - Size: Klein | Color Chrome Effect: Off | Color FX Blue:None | " +
+                "Colour: 4 | Sharpness: 1 | Highlight: -2.0 | Shadow: -2.0 | " +
+                "High ISO NR: -4 | Clarity: -3 | ISO:",
+            tag = "fujistyle",
+        )!!
+        assertEquals("Nostalgic Golden Hour", r.name)
+        assertEquals(FilmSimulation.CLASSIC_NEG, r.filmSimulation)
+        assertEquals(WhiteBalance.AUTO, r.whiteBalance)
+        assertEquals(2, r.wbShiftRed)
+        assertEquals(-5, r.wbShiftBlue)
+        assertEquals(DynamicRange.DR400, r.dynamicRange)
+        assertEquals(Strength.WEAK, r.grainEffect)   // Schwach
+        assertEquals(GrainSize.SMALL, r.grainSize)    // Klein
+        assertEquals(Strength.OFF, r.colorChromeEffect)
+        assertEquals(Strength.OFF, r.colorChromeFxBlue)
+        assertEquals(4, r.color)
+        assertEquals(1, r.sharpness)
+        assertEquals(-2.0, r.highlight, 0.0)
+        assertEquals(-2.0, r.shadow, 0.0)
+        assertEquals(-4, r.noiseReduction)
+        assertEquals(-3, r.clarity)
+    }
+
+    @Test
     fun rejectsTextWithoutFilmSimulation() {
         assertNull(FujiStyleCard.parse("random text with no recipe"))
         assertNull(FujiStyleCard.parse("Film Simulation: SOMETHING UNKNOWN | Red: 1"))

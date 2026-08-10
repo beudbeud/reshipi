@@ -140,10 +140,10 @@ object FujiStyleCard {
                 field("Grain\\s+Effect\\s*-?\\s*Roughness") ?: field("Grain\\s+Effect")
                     ?: field("Grain")
             ),
-            grainSize = if (
-                (field("Grain\\s+(?:Effect\\s*-?\\s*)?Size") ?: field("Grain\\s+Effect")
-                    ?: field("Grain") ?: "").contains("large", true)
-            ) GrainSize.LARGE else GrainSize.SMALL,
+            grainSize = if (isLarge(
+                    field("Grain\\s+(?:Effect\\s*-?\\s*)?Size") ?: field("Grain\\s+Effect")
+                        ?: field("Grain")
+                )) GrainSize.LARGE else GrainSize.SMALL,
             // "Color Chrome Effect", bare "Chrome Effect", or "Color chrome fx"
             // (lookahead: don't grab the FX Blue variants)
             colorChromeEffect = strength(field("(?:Colou?r\\s+)?Chrome\\s+(?:Effect|FX)(?!\\s*(?:Effect\\s*)?Blue)")),
@@ -163,12 +163,21 @@ object FujiStyleCard {
 
     private fun Double.halfSteps(): Double = (this * 2).roundToInt() / 2.0
 
+    // FujiStyle localizes strength/size words (the app follows the phone's
+    // language) while keeping English keys — e.g. German "Schwach"/"Klein".
+    private val STRONG_WORDS = listOf("strong", "stark", "fort", "강")
+    private val WEAK_WORDS = listOf("weak", "schwach", "faible", "약")
+    private val LARGE_WORDS = listOf("large", "groß", "gross", "grand", "grande", "big")
+
     private fun strength(raw: String?): Strength = when {
         raw == null -> Strength.OFF
-        raw.contains("strong", true) -> Strength.STRONG
-        raw.contains("weak", true) -> Strength.WEAK
-        else -> Strength.OFF // None / Off
+        STRONG_WORDS.any { raw.contains(it, true) } -> Strength.STRONG
+        WEAK_WORDS.any { raw.contains(it, true) } -> Strength.WEAK
+        else -> Strength.OFF // None / Off / Aus / Désactivé
     }
+
+    private fun isLarge(raw: String?): Boolean =
+        raw != null && LARGE_WORDS.any { raw.contains(it, true) }
 
     /** Recognizes a film simulation name inside free text (used for bare-line detection too). */
     internal fun detectSim(raw: String): FilmSimulation? {
