@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Reshipi</string>
+
+    <string name="new_recipe">Nouvelle recette</string>
+    <string name="edit_recipe">Modifier la recette</string>
+    <string name="save">Enregistrer</string>
+    <string name="cancel">Annuler</string>
+    <string name="back">Retour</string>
+    <string name="delete">Supprimer</string>
+    <string name="edit">Modifier</string>
+    <string name="search">Rechercher</string>
+    <string name="more">Plus</string>
+    <string name="favorites">Favoris</string>
+    <string name="favorite">Favori</string>
+    <string name="empty_list">Aucune recette. Appuyez sur + pour en créer une.</string>
+    <string name="delete_confirm_title">Supprimer la recette ?</string>
+    <string name="delete_confirm_text">« %1$s » et ses photos seront supprimées.</string>
+
+    <string name="name">Nom</string>
+    <string name="generation">Génération de capteur</string>
+    <string name="film_simulation">Simulation de film</string>
+    <string name="white_balance">Balance des blancs</string>
+    <string name="kelvin">Kelvin</string>
+    <string name="wb_shift_red">Décalage BB Rouge</string>
+    <string name="wb_shift_blue">Décalage BB Bleu</string>
+    <string name="dynamic_range">Plage dynamique</string>
+    <string name="d_range_priority">Priorité plage dynamique</string>
+    <string name="section_tone">Tons &amp; couleur</string>
+    <string name="highlight">Hautes lumières</string>
+    <string name="shadow">Ombres</string>
+    <string name="color">Couleur</string>
+    <string name="sharpness">Netteté</string>
+    <string name="noise_reduction">Réduction du bruit</string>
+    <string name="section_effects">Effets</string>
+    <string name="grain_effect">Effet de grain</string>
+    <string name="grain_size">Taille du grain</string>
+    <string name="color_chrome_effect">Effet Color Chrome</string>
+    <string name="color_chrome_fx_blue">Color Chrome FX Bleu</string>
+    <string name="clarity">Clarté</string>
+    <string name="section_exposure">Exposition</string>
+    <string name="iso">ISO</string>
+    <string name="exposure_compensation">Correction d\'exposition</string>
+    <string name="notes">Notes</string>
+    <string name="photos">Photos</string>
+    <string name="add_photo">Ajouter une photo</string>
+    <string name="remove_photo">Retirer la photo</string>
+
+    <string name="export_json">Exporter en JSON</string>
+    <string name="import_json">Importer un JSON</string>
+    <string name="export_done">Recettes exportées</string>
+    <string name="export_failed">Échec de l\'export</string>
+    <string name="import_done">%1$d recettes importées</string>
+    <string name="import_failed">Échec de l\'import : fichier invalide</string>
+
+    <string name="off">Désactivé</string>
+    <string name="weak">Faible</string>
+    <string name="strong">Fort</string>
+    <string name="auto">Auto</string>
+    <string name="size_small">Petit</string>
+    <string name="size_large">Grand</string>
+
+    <string name="wb_auto">Auto</string>
+    <string name="wb_daylight">Ensoleillé</string>
+    <string name="wb_shade">Ombre</string>
+    <string name="wb_fluorescent_1">Fluorescent 1</string>
+    <string name="wb_fluorescent_2">Fluorescent 2</string>
+    <string name="wb_fluorescent_3">Fluorescent 3</string>
+    <string name="wb_incandescent">Incandescent</string>
+    <string name="wb_underwater">Sous-marin</string>
+    <string name="wb_kelvin">Kelvin</string>
+</resources>

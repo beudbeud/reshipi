@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Reshipi</string>
+
+    <string name="new_recipe">New recipe</string>
+    <string name="edit_recipe">Edit recipe</string>
+    <string name="save">Save</string>
+    <string name="cancel">Cancel</string>
+    <string name="back">Back</string>
+    <string name="delete">Delete</string>
+    <string name="edit">Edit</string>
+    <string name="search">Search</string>
+    <string name="more">More</string>
+    <string name="favorites">Favorites</string>
+    <string name="favorite">Favorite</string>
+    <string name="empty_list">No recipes yet. Tap + to create one.</string>
+    <string name="delete_confirm_title">Delete recipe?</string>
+    <string name="delete_confirm_text">“%1$s” and its photos will be deleted.</string>
+
+    <string name="name">Name</string>
+    <string name="generation">Sensor generation</string>
+    <string name="film_simulation">Film simulation</string>
+    <string name="white_balance">White balance</string>
+    <string name="kelvin">Kelvin</string>
+    <string name="wb_shift_red">WB shift Red</string>
+    <string name="wb_shift_blue">WB shift Blue</string>
+    <string name="dynamic_range">Dynamic range</string>
+    <string name="d_range_priority">D-Range priority</string>
+    <string name="section_tone">Tone &amp; color</string>
+    <string name="highlight">Highlight</string>
+    <string name="shadow">Shadow</string>
+    <string name="color">Color</string>
+    <string name="sharpness">Sharpness</string>
+    <string name="noise_reduction">Noise reduction</string>
+    <string name="section_effects">Effects</string>
+    <string name="grain_effect">Grain effect</string>
+    <string name="grain_size">Grain size</string>
+    <string name="color_chrome_effect">Color Chrome effect</string>
+    <string name="color_chrome_fx_blue">Color Chrome FX Blue</string>
+    <string name="clarity">Clarity</string>
+    <string name="section_exposure">Exposure</string>
+    <string name="iso">ISO</string>
+    <string name="exposure_compensation">Exposure compensation</string>
+    <string name="notes">Notes</string>
+    <string name="photos">Photos</string>
+    <string name="add_photo">Add photo</string>
+    <string name="remove_photo">Remove photo</string>
+
+    <string name="export_json">Export JSON</string>
+    <string name="import_json">Import JSON</string>
+    <string name="export_done">Recipes exported</string>
+    <string name="export_failed">Export failed</string>
+    <string name="import_done">%1$d recipes imported</string>
+    <string name="import_failed">Import failed: invalid file</string>
+
+    <string name="off">Off</string>
+    <string name="weak">Weak</string>
+    <string name="strong">Strong</string>
+    <string name="auto">Auto</string>
+    <string name="size_small">Small</string>
+    <string name="size_large">Large</string>
+
+    <string name="wb_auto">Auto</string>
+    <string name="wb_daylight">Daylight</string>
+    <string name="wb_shade">Shade</string>
+    <string name="wb_fluorescent_1">Fluorescent 1</string>
+    <string name="wb_fluorescent_2">Fluorescent 2</string>
+    <string name="wb_fluorescent_3">Fluorescent 3</string>
+    <string name="wb_incandescent">Incandescent</string>
+    <string name="wb_underwater">Underwater</string>
+    <string name="wb_kelvin">Kelvin</string>
+</resources>
