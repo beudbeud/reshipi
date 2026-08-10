@@ -81,7 +81,13 @@ fun RafPreviewDialog(recipe: Recipe, repo: RecipeRepository, onDismiss: () -> Un
                                 "${raf.size / 1024}KB, camera is \"$body\""
                         )
                         if (rafModel == null) {
-                            throw java.io.IOException(context.getString(R.string.raf_not_a_raf))
+                            DebugLog.log("not a RAF: ${RafFile.describe(raf)}")
+                            throw java.io.IOException(
+                                context.getString(
+                                    if (RafFile.isJpeg(raf)) R.string.raf_is_jpeg
+                                    else R.string.raf_not_a_raf
+                                )
+                            )
                         }
                         if (!rafModel.equals(body, ignoreCase = true)) {
                             throw java.io.IOException(

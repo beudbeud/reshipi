@@ -20,6 +20,30 @@ object RafFile {
     private const val MODEL_OFFSET = 0x1C
     private const val MODEL_LENGTH = 32
 
+    /**
+     * What the file actually starts with, for diagnostics: the magic as printable
+     * ASCII plus the first bytes in hex. A picker handing back the wrong file is
+     * indistinguishable from a corrupt one without this.
+     */
+    fun describe(bytes: ByteArray): String {
+        if (bytes.size < 8) return "${bytes.size} bytes"
+        val head = bytes.copyOfRange(0, 8)
+        val hex = head.joinToString(" ") { "%02X".format(it) }
+        val ascii = head.map { if (it in 32..126) it.toInt().toChar() else '.' }.joinToString("")
+        val kind = when {
+            isRaf(bytes) -> "RAF"
+            head[0] == 0xFF.toByte() && head[1] == 0xD8.toByte() -> "JPEG"
+            bytes.decodeToString(0, 4) == "\u0089PNG" -> "PNG"
+            bytes.decodeToString(0, 2) in setOf("II", "MM") -> "TIFF/DNG"
+            else -> "unknown"
+        }
+        return "$kind [$hex] \"$ascii\""
+    }
+
+    /** True when the bytes carry a JPEG's start-of-image marker. */
+    fun isJpeg(bytes: ByteArray): Boolean =
+        bytes.size > 2 && bytes[0] == 0xFF.toByte() && bytes[1] == 0xD8.toByte()
+
     fun isRaf(bytes: ByteArray): Boolean =
         bytes.size > MODEL_OFFSET + MODEL_LENGTH &&
             bytes.decodeToString(0, MAGIC.length) == MAGIC
