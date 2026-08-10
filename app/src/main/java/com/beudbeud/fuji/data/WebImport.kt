@@ -12,16 +12,16 @@ import java.net.URL
  */
 object WebImport {
 
-    fun fetch(url: String, repo: RecipeRepository): Recipe? = runCatching {
+    fun fetch(url: String, repo: RecipeRepository): List<Recipe> = runCatching {
         DebugLog.log("web import: $url")
-        val html = get(url) ?: return null
+        val html = get(url) ?: return emptyList()
         val text = ensureFilmSimulationKey(pairKeyValueLines(htmlToText(html)))
-        val recipe = FujiStyleCard.parse(text, tag = "fujixweekly") ?: return null
+        val recipes = FujiStyleCard.parseAll(text, tag = "fujixweekly")
+        if (recipes.isEmpty()) return emptyList()
 
         val title = Regex("property=\"og:title\" content=\"([^\"]+)\"").find(html)?.groupValues?.get(1)
             ?: Regex("<title>([^<|–—-]+)").find(html)?.groupValues?.get(1)?.trim()
-        val name = title?.substringAfterLast("Recipe:")?.trim()?.takeIf { it.isNotBlank() }
-            ?: recipe.name.ifBlank { "Import" }
+        val pageName = title?.substringAfterLast("Recipe:")?.trim()?.takeIf { it.isNotBlank() }
         val gen = Regex("X-Trans (V|IV|III|II|I)\\b").find(title ?: "")?.groupValues?.get(1)?.let {
             when (it) {
                 "I" -> Generation.X_TRANS_I
@@ -34,12 +34,16 @@ object WebImport {
         val photo = Regex("property=\"og:image\" content=\"([^\"]+)\"").find(html)?.groupValues?.get(1)
             ?.let { imageUrl -> runCatching { getBytes(imageUrl)?.let { repo.addPhotoBytes(it) } }.getOrNull() }
 
-        recipe.copy(
-            name = name,
-            generation = gen ?: recipe.generation,
-            photos = listOfNotNull(photo),
-        ).also { DebugLog.log("web import ok: \"${it.name}\" photo=${photo != null}") }
-    }.onFailure { DebugLog.log("web import failed: ${it.message}") }.getOrNull()
+        recipes.mapIndexed { i, recipe ->
+            recipe.copy(
+                // single recipe: page title wins; multi: keep per-recipe headings
+                name = if (recipes.size == 1) (pageName ?: recipe.name.ifBlank { "Import" })
+                else recipe.name.ifBlank { "${pageName ?: "Import"} ${i + 1}" },
+                generation = gen ?: recipe.generation,
+                photos = if (i == 0) listOfNotNull(photo) else emptyList(),
+            )
+        }.also { DebugLog.log("web import ok: ${it.size} recipe(s), photo=${photo != null}") }
+    }.onFailure { DebugLog.log("web import failed: ${it.message}") }.getOrDefault(emptyList())
 
     private fun get(url: String): String? = getBytes(url)?.toString(Charsets.UTF_8)
 
@@ -75,11 +79,13 @@ object WebImport {
     // value on the following line — reassembled into "Key: value".
     private val KNOWN_KEYS = listOf(
         "grain effect / grain size", "color chrome effect / fx blue", "wb / color temperature",
-        "film simulation", "dynamic range", "white balance shift", "white balance",
-        "highlight", "shadow", "colour", "color chrome effect", "color chrome fx blue",
+        "base film simulation", "film simulation", "dynamic range",
+        "white balance shift", "white balance", "wb shift red", "wb shift blue",
+        "highlights", "highlight", "shadows", "shadow", "colour",
+        "color chrome effect", "color chrome fx blue",
         "color", "sharpness", "sharpening", "noise reduction", "high iso nr",
         "grain effect", "grain size", "clarity", "iso", "exposure compensation",
-        "dr priority", "d-range priority", "monochromatic color",
+        "dr priority", "d-range priority", "monochromatic color", "monochromatic colour",
     )
 
     /**
@@ -129,15 +135,20 @@ object WebImport {
      * settings block and prepend it as a proper key so the parser picks it up.
      */
     internal fun ensureFilmSimulationKey(text: String): String {
-        if (Regex("Film\\s+Simulation\\s*:", RegexOption.IGNORE_CASE).containsMatchIn(text)) return text
+        if (FujiStyleCard.SIM_KEY.containsMatchIn(text)) return text
         val lines = text.lines().map { it.trim() }
-        val anchor = lines.indexOfFirst {
-            it.contains("Dynamic Range", true) || it.contains("Grain Effect", true)
-        }
-        if (anchor <= 0) return text
-        for (i in (maxOf(0, anchor - 6) until anchor).reversed()) {
-            if (!lines[i].contains(":") && FujiStyleCard.detectSim(lines[i]) != null) {
-                return "Film Simulation: ${lines[i]}\n$text"
+        // Anchor on actual settings-key lines (line start + separator), not prose
+        // mentions of "dynamic range"; try every anchor until one yields a sim.
+        val anchorRegex = Regex(
+            "^(?:Dynamic\\s+Range|Grain(?:\\s+Effect)?|Highlights?|White\\s+Balance)\\s*(?::|\\s[–-]\\s)",
+            RegexOption.IGNORE_CASE,
+        )
+        for (anchor in lines.indices) {
+            if (anchor == 0 || !anchorRegex.containsMatchIn(lines[anchor])) continue
+            for (i in (maxOf(0, anchor - 6) until anchor).reversed()) {
+                if (!lines[i].contains(":") && FujiStyleCard.detectSim(lines[i]) != null) {
+                    return "Film Simulation: ${lines[i]}\n$text"
+                }
             }
         }
         return text

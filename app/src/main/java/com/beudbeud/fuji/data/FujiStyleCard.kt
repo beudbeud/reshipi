@@ -18,9 +18,46 @@ import kotlin.math.roundToInt
  */
 object FujiStyleCard {
 
+    // Key/value separator: colon, or a dash surrounded by spaces ("Sharpness - -3").
+    // A dash glued to a digit is a minus sign ("Highlights -1"), not a separator.
+    private const val SEP = "\\s*(?::|\\s[–-]\\s)\\s*"
+
+    internal val SIM_KEY = Regex("(?:Base\\s+)?Film\\s+Simulation$SEP", RegexOption.IGNORE_CASE)
+
+    /**
+     * Parses every recipe in the text: pages listing several recipes are split
+     * at each "Film Simulation" declaration and parsed independently. Recipes
+     * without a name get one from the nearest preceding heading when possible.
+     */
+    fun parseAll(text: String, tag: String = "fujistyle"): List<Recipe> {
+        val starts = SIM_KEY.findAll(text).map { it.range.first }.toList()
+        if (starts.size <= 1) return listOfNotNull(parse(text, tag))
+        val recipes = mutableListOf<Recipe>()
+        for ((i, start) in starts.withIndex()) {
+            val end = if (i + 1 < starts.size) starts[i + 1] else text.length
+            val recipe = parse(text.substring(start, end), tag) ?: continue
+            val heading = headingBefore(text, start)
+            recipes += if (recipe.name.isBlank() && heading != null) recipe.copy(name = heading) else recipe
+        }
+        return recipes
+    }
+
+    /** Best-effort recipe name: nearest preceding short line that isn't a setting. */
+    private fun headingBefore(text: String, offset: Int): String? =
+        text.take(offset).lines().map { it.trim() }
+            .lastOrNull { line ->
+                line.length in 3..60 && ':' !in line && '|' !in line &&
+                    line.count { it.isLetter() } >= 3 &&
+                    line.lowercase() !in setOf("setting", "value") &&
+                    detectSim(line) == null
+            }
+            ?.replace(Regex("^\\d+[.)]\\s*"), "")
+            ?.replace(Regex("(?i)\\s*(jpeg\\s*)?settings$"), "")
+            ?.trim()?.takeIf { it.isNotBlank() }
+
     fun parse(text: String, tag: String = "fujistyle"): Recipe? {
         fun field(keyPattern: String): String? =
-            Regex("$keyPattern\\s*:\\s*([^|\\n]+)", RegexOption.IGNORE_CASE)
+            Regex("$keyPattern$SEP([^|\\n]+)", RegexOption.IGNORE_CASE)
                 .find(text)?.groupValues?.get(1)?.trim()
 
         fun num(keyPattern: String): Double? =
@@ -28,7 +65,7 @@ object FujiStyleCard {
 
         // Some pages list the simulation twice (base then refined variant,
         // e.g. "Monochrome" then "Monochrome+ Ye Filter") — keep the last one.
-        val sim = Regex("Film\\s+Simulation\\s*:\\s*([^|\\n]+)", RegexOption.IGNORE_CASE)
+        val sim = Regex("(?:Base\\s+)?Film\\s+Simulation$SEP([^|\\n]+)", RegexOption.IGNORE_CASE)
             .findAll(text)
             .mapNotNull { detectSim(it.groupValues[1]) }
             .lastOrNull() ?: return null
@@ -91,8 +128,8 @@ object FujiStyleCard {
                     else DRangePriority.OFF
                 }
             },
-            highlight = (num("Highlight") ?: curve("Highlight") ?: 0.0).halfSteps().coerceIn(-2.0, 4.0),
-            shadow = (num("Shadow") ?: curve("Shadow") ?: 0.0).halfSteps().coerceIn(-2.0, 4.0),
+            highlight = (num("Highlights?") ?: curve("Highlight") ?: 0.0).halfSteps().coerceIn(-2.0, 4.0),
+            shadow = (num("Shadows?") ?: curve("Shadow") ?: 0.0).halfSteps().coerceIn(-2.0, 4.0),
             color = (num("Colou?r")?.roundToInt() ?: 0).coerceIn(-4, 4),
             sharpness = ((num("Sharpness") ?: num("Sharpening"))?.roundToInt() ?: 0).coerceIn(-4, 4),
             noiseReduction = ((num("High\\s+ISO\\s+NR") ?: num("Noise\\s+Reduction"))?.roundToInt() ?: 0)
@@ -104,13 +141,15 @@ object FujiStyleCard {
                     ?: field("Grain")
             ),
             grainSize = if (
-                (field("Grain\\s+Effect\\s*-?\\s*Size") ?: field("Grain\\s+Effect")
+                (field("Grain\\s+(?:Effect\\s*-?\\s*)?Size") ?: field("Grain\\s+Effect")
                     ?: field("Grain") ?: "").contains("large", true)
             ) GrainSize.LARGE else GrainSize.SMALL,
-            // "Color Chrome Effect" or bare "Chrome Effect"
-            colorChromeEffect = strength(field("(?:Color\\s+)?Chrome\\s+Effect")),
-            // "Color FX Blue" (FujiStyle) or "Color Chrome Effect Blue" (Fuji X Weekly)
-            colorChromeFxBlue = strength(field("Color\\s+(?:Chrome\\s+)?(?:FX|Effect)\\s+Blue")),
+            // "Color Chrome Effect", bare "Chrome Effect", or "Color chrome fx"
+            // (lookahead: don't grab the FX Blue variants)
+            colorChromeEffect = strength(field("(?:Colou?r\\s+)?Chrome\\s+(?:Effect|FX)(?!\\s*(?:Effect\\s*)?Blue)")),
+            // "Color FX Blue", "Color Chrome FX Blue", "Color Chrome Effect Blue",
+            // or "Color chrome blue"
+            colorChromeFxBlue = strength(field("Colou?r\\s+(?:Chrome\\s+)?(?:FX\\s+|Effect\\s+)?Blue")),
             clarity = (num("Clarity")?.roundToInt() ?: 0).coerceIn(-5, 5),
             // ISO is the only free-text field: when empty at the end of the block,
             // the regex can swallow the "Made with FUJISTYLE APP" footer line.

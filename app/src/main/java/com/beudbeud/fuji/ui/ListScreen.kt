@@ -199,12 +199,22 @@ fun ListScreen(
                 TextButton(
                     enabled = textInput.isNotBlank(),
                     onClick = {
-                        val recipe = FujiStyleCard.parse(textInput, tag = "import")
-                        if (recipe == null) {
-                            scope.launch { snackbar.showSnackbar(context.getString(R.string.card_parse_failed)) }
-                        } else {
-                            showTextImport = false
-                            onCreateFromPhoto(recipe)
+                        val recipes = FujiStyleCard.parseAll(textInput, tag = "import")
+                        when {
+                            recipes.isEmpty() -> scope.launch {
+                                snackbar.showSnackbar(context.getString(R.string.card_parse_failed))
+                            }
+                            recipes.size == 1 -> {
+                                showTextImport = false
+                                onCreateFromPhoto(recipes.first())
+                            }
+                            else -> {
+                                showTextImport = false
+                                recipes.forEach { repo.upsert(it) }
+                                scope.launch {
+                                    snackbar.showSnackbar(context.getString(R.string.import_done, recipes.size))
+                                }
+                            }
                         }
                     },
                 ) { Text(stringResource(R.string.create)) }
