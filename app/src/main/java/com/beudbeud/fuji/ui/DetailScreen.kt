@@ -55,6 +55,7 @@ import com.beudbeud.fuji.data.RecipeRepository
 import com.beudbeud.fuji.model.Recipe
 import com.beudbeud.fuji.model.Strength
 import com.beudbeud.fuji.model.WhiteBalance
+import com.beudbeud.fuji.model.cameraLabel
 import com.beudbeud.fuji.model.formatSigned
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -146,7 +147,7 @@ fun DetailScreen(
                 }
                 HorizontalDivider()
             }
-            DetailRow(stringResource(R.string.generation), gen.label)
+            DetailRow(stringResource(R.string.camera_model), recipe.cameraLabel)
             DetailRow(stringResource(R.string.film_simulation), recipe.filmSimulation.label)
             DetailRow(
                 stringResource(R.string.white_balance),
@@ -233,7 +234,7 @@ private fun shareRecipe(context: Context, recipe: Recipe) {
     fun s(res: Int) = context.getString(res)
     val text = buildString {
         appendLine(recipe.name)
-        appendLine("${s(R.string.generation)}: ${gen.label}")
+        appendLine("${s(R.string.camera_model)}: ${recipe.cameraLabel}")
         appendLine("${s(R.string.film_simulation)}: ${recipe.filmSimulation.label}")
         append("${s(R.string.white_balance)}: ${s(recipe.whiteBalance.labelRes)}")
         if (recipe.whiteBalance == WhiteBalance.KELVIN) recipe.kelvin?.let { append(" ${it}K") }

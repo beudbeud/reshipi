@@ -19,6 +19,7 @@
 
     <string name="name">Name</string>
     <string name="generation">Sensor generation</string>
+    <string name="camera_model">Camera</string>
     <string name="film_simulation">Film simulation</string>
     <string name="white_balance">White balance</string>
     <string name="kelvin">Kelvin</string>

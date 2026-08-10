@@ -30,6 +30,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import com.beudbeud.fuji.model.CAMERA_MODELS
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -100,11 +101,18 @@ fun EditScreen(
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
             )
+            // One entry per camera model (which fixes the feature set), plus
+            // generic per-generation entries for recipes with no known body.
+            val cameraOptions = remember { Generation.entries.map { it.label to it } + CAMERA_MODELS }
+            val selectedCamera = cameraOptions.firstOrNull { it.first == draft.cameraModel }
+                ?: (gen.label to gen)
             EnumDropdown(
-                stringResource(R.string.generation), Generation.entries, gen, { it.label }
-            ) { newGen ->
+                stringResource(R.string.camera_model), cameraOptions, selectedCamera,
+                { (label, g) -> if (label == g.label) label else "$label · ${g.label}" }
+            ) { (label, newGen) ->
                 // clamp everything the new generation doesn't support or ranges differently
                 draft = draft.copy(
+                    cameraModel = if (label == newGen.label) "" else label,
                     generation = newGen,
                     filmSimulation = if (draft.filmSimulation.minGen <= newGen) draft.filmSimulation
                     else FilmSimulation.PROVIA,

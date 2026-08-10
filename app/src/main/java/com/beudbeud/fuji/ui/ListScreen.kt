@@ -46,6 +46,7 @@ import androidx.compose.ui.unit.dp
 import com.beudbeud.fuji.R
 import com.beudbeud.fuji.data.RecipeRepository
 import com.beudbeud.fuji.model.Recipe
+import com.beudbeud.fuji.model.cameraLabel
 import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions
 import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
@@ -219,7 +220,7 @@ fun ListScreen(
                                 Column(Modifier.weight(1f)) {
                                     Text(r.name, style = MaterialTheme.typography.titleMedium)
                                     Text(
-                                        "${r.filmSimulation.label} · ${r.generation.label}",
+                                        "${r.filmSimulation.label} · ${r.cameraLabel}",
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     )

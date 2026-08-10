@@ -19,6 +19,7 @@
 
     <string name="name">Nom</string>
     <string name="generation">Génération de capteur</string>
+    <string name="camera_model">Boîtier</string>
     <string name="film_simulation">Simulation de film</string>
     <string name="white_balance">Balance des blancs</string>
     <string name="kelvin">Kelvin</string>

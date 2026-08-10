@@ -56,6 +56,16 @@ class RecipeJsonTest {
     }
 
     @Test
+    fun cameraModelMapping() {
+        val byModel = com.beudbeud.fuji.model.CAMERA_MODELS.toMap()
+        // hybrids (X-Trans IV sensor + X-Processor 5) get the V feature set
+        assertEquals(Generation.X_TRANS_V, byModel["X-T30 III"])
+        assertEquals(Generation.X_TRANS_V, byModel["X-M5"])
+        assertEquals(Generation.X_TRANS_IV, byModel["X-T3"])
+        assertEquals(Generation.X_TRANS_I, byModel["X-Pro1"])
+    }
+
+    @Test
     fun generationMatrix() {
         assertTrue(FilmSimulation.CLASSIC_CHROME !in Generation.X_TRANS_I.filmSimulations)
         assertTrue(FilmSimulation.CLASSIC_NEG !in Generation.X_TRANS_III.filmSimulations)

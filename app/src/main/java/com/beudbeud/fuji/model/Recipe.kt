@@ -25,6 +25,47 @@ enum class Generation(val label: String) {
     val filmSimulations get() = FilmSimulation.entries.filter { it.minGen <= this }
 }
 
+/**
+ * Camera model → feature set. Hybrids (X-Trans IV sensor + X-Processor 5,
+ * e.g. X-T30 III, X-M5) map to X_TRANS_V because their film simulations and
+ * settings match that generation. X-Trans line only; Bayer/GFX not covered.
+ */
+val CAMERA_MODELS: List<Pair<String, Generation>> = listOf(
+    "X-Pro1" to Generation.X_TRANS_I,
+    "X-E1" to Generation.X_TRANS_I,
+    "X-M1" to Generation.X_TRANS_I,
+    "X100S" to Generation.X_TRANS_II,
+    "X100T" to Generation.X_TRANS_II,
+    "X-E2" to Generation.X_TRANS_II,
+    "X-E2S" to Generation.X_TRANS_II,
+    "X-T1" to Generation.X_TRANS_II,
+    "X-T10" to Generation.X_TRANS_II,
+    "X70" to Generation.X_TRANS_II,
+    "X-Pro2" to Generation.X_TRANS_III,
+    "X100F" to Generation.X_TRANS_III,
+    "X-T2" to Generation.X_TRANS_III,
+    "X-T20" to Generation.X_TRANS_III,
+    "X-E3" to Generation.X_TRANS_III,
+    "X-H1" to Generation.X_TRANS_III,
+    "X-T3" to Generation.X_TRANS_IV,
+    "X-T30" to Generation.X_TRANS_IV,
+    "X-Pro3" to Generation.X_TRANS_IV,
+    "X100V" to Generation.X_TRANS_IV,
+    "X-T4" to Generation.X_TRANS_IV,
+    "X-S10" to Generation.X_TRANS_IV,
+    "X-E4" to Generation.X_TRANS_IV,
+    "X-T30 II" to Generation.X_TRANS_IV,
+    "X-H2S" to Generation.X_TRANS_V,
+    "X-H2" to Generation.X_TRANS_V,
+    "X-T5" to Generation.X_TRANS_V,
+    "X-S20" to Generation.X_TRANS_V,
+    "X100VI" to Generation.X_TRANS_V,
+    "X-T50" to Generation.X_TRANS_V,
+    "X-M5" to Generation.X_TRANS_V,
+    "X-E5" to Generation.X_TRANS_V,
+    "X-T30 III" to Generation.X_TRANS_V,
+)
+
 // Fuji product names, not translated.
 enum class FilmSimulation(val label: String, val minGen: Generation) {
     PROVIA("Provia/Std", Generation.X_TRANS_I),
@@ -79,6 +120,7 @@ enum class GrainSize(@StringRes val labelRes: Int) {
 data class Recipe(
     val id: String = UUID.randomUUID().toString(),
     val name: String = "",
+    val cameraModel: String = "",   // "" = generic, only the generation is known
     val generation: Generation = Generation.X_TRANS_IV,
     val filmSimulation: FilmSimulation = FilmSimulation.PROVIA,
     val whiteBalance: WhiteBalance = WhiteBalance.AUTO,
@@ -125,3 +167,6 @@ fun formatSigned(v: Double): String {
 }
 
 fun formatSigned(v: Int): String = if (v > 0) "+$v" else v.toString()
+
+/** Display name for the recipe's target camera: model if known, else generation. */
+val Recipe.cameraLabel: String get() = cameraModel.ifBlank { generation.label }
