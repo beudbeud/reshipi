@@ -46,6 +46,9 @@ import androidx.compose.ui.unit.dp
 import com.beudbeud.fuji.R
 import com.beudbeud.fuji.data.RecipeRepository
 import com.beudbeud.fuji.model.Recipe
+import com.google.mlkit.vision.barcode.common.Barcode
+import com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions
+import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 
@@ -149,6 +152,27 @@ fun ListScreen(
                                     importLauncher.launch(
                                         arrayOf("application/json", "application/octet-stream", "text/plain")
                                     )
+                                },
+                            )
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.scan_qr)) },
+                                onClick = {
+                                    menuOpen = false
+                                    val options = GmsBarcodeScannerOptions.Builder()
+                                        .setBarcodeFormats(Barcode.FORMAT_QR_CODE)
+                                        .build()
+                                    GmsBarcodeScanning.getClient(context, options).startScan()
+                                        .addOnSuccessListener { barcode ->
+                                            val n = runCatching {
+                                                repo.importJson(barcode.rawValue ?: "")
+                                            }.getOrNull()
+                                            scope.launch {
+                                                snackbar.showSnackbar(
+                                                    if (n != null) context.getString(R.string.import_done, n)
+                                                    else context.getString(R.string.import_failed)
+                                                )
+                                            }
+                                        }
                                 },
                             )
                         }

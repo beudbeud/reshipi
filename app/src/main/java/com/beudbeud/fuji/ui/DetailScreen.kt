@@ -22,8 +22,12 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.foundation.layout.Box
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -65,6 +69,8 @@ fun DetailScreen(
     var confirmDelete by remember { mutableStateOf(false) }
     var fullPhoto by remember { mutableStateOf<String?>(null) }
     var showSend by remember { mutableStateOf(false) }
+    var showQr by remember { mutableStateOf(false) }
+    var menuOpen by remember { mutableStateOf(false) }
     val gen = recipe.generation
     val context = LocalContext.current
 
@@ -89,14 +95,29 @@ fun DetailScreen(
                     IconButton(onClick = { showSend = true }) {
                         Icon(Icons.AutoMirrored.Filled.Send, stringResource(R.string.send_to_camera))
                     }
-                    IconButton(onClick = { shareRecipe(context, recipe) }) {
-                        Icon(Icons.Default.Share, stringResource(R.string.share))
-                    }
                     IconButton(onClick = onEdit) {
                         Icon(Icons.Default.Edit, stringResource(R.string.edit))
                     }
-                    IconButton(onClick = { confirmDelete = true }) {
-                        Icon(Icons.Default.Delete, stringResource(R.string.delete))
+                    Box {
+                        IconButton(onClick = { menuOpen = true }) {
+                            Icon(Icons.Default.MoreVert, stringResource(R.string.more))
+                        }
+                        DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.share_text)) },
+                                leadingIcon = { Icon(Icons.Default.Share, null) },
+                                onClick = { menuOpen = false; shareRecipe(context, recipe) },
+                            )
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.share_qr)) },
+                                onClick = { menuOpen = false; showQr = true },
+                            )
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.delete)) },
+                                leadingIcon = { Icon(Icons.Default.Delete, null) },
+                                onClick = { menuOpen = false; confirmDelete = true },
+                            )
+                        }
                     }
                 },
             )
@@ -168,6 +189,10 @@ fun DetailScreen(
 
     if (showSend) {
         SendToCameraDialog(recipe = recipe, onDismiss = { showSend = false })
+    }
+
+    if (showQr) {
+        QrDialog(recipe = recipe, onDismiss = { showQr = false })
     }
 
     if (confirmDelete) {

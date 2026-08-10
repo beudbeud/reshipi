@@ -47,6 +47,9 @@
     <string name="remove_photo">Retirer la photo</string>
 
     <string name="share">Partager</string>
+    <string name="share_text">Partager en texte</string>
+    <string name="share_qr">Partager par QR code</string>
+    <string name="scan_qr">Scanner un QR code</string>
     <string name="send_to_camera">Envoyer vers le boîtier</string>
     <string name="camera_slot">Slot de preset (C1–C7)</string>
     <string name="send">Envoyer</string>
