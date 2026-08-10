@@ -30,17 +30,25 @@ object CardCrop {
         val topMean = (0 until h / 4).sumOf { frac[it] } / (h / 4)
         if (topMean > 0.5) return null
 
-        // Photo bottom = last clearly-photo row followed by a sustained panel run.
-        var boundary = h
-        for (y in (h * 35 / 100) until (h * 90 / 100)) {
+        // Photo bottom = FIRST clearly-photo row followed by a sustained panel run.
+        // Taking the last such row would land on the dark separator lines drawn
+        // *inside* the panel (they are non-panel rows with panel rows after them),
+        // cropping below the title instead of above it.
+        var first = -1
+        for (y in (h * 20 / 100) until (h * 92 / 100)) {
             if (frac[y] < 0.30) {
                 val ahead = (y + 1 until minOf(y + 61, h))
                 if (ahead.count() > 0 && ahead.sumOf { frac[it] } / ahead.count() >= 0.75) {
-                    boundary = y
+                    first = y
+                    break
                 }
             }
         }
-        if (boundary >= h) return null // no clear panel → leave to caller (keep whole)
+        if (first < 0) return null // no clear panel → not a card, keep whole image
+
+        // Extend through the contiguous transition rows so no photo edge is lost.
+        var boundary = first
+        while (boundary + 1 < h && frac[boundary + 1] < 0.30) boundary++
 
         val cropped = Bitmap.createBitmap(bmp, 0, 0, w, boundary)
         ByteArrayOutputStream().use { out ->
