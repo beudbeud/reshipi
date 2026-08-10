@@ -41,8 +41,15 @@ object FujiStyleCard {
         fun wbShift(color: String): Int? =
             Regex("([+-]?\\d+)\\s*$color").find(wbRaw)?.groupValues?.get(1)?.toIntOrNull()
                 ?: Regex("$color\\s*:?\\s*([+-]?\\d+)").find(wbRaw)?.groupValues?.get(1)?.toIntOrNull()
-                ?: Regex("\\b${color.first()}\\s*:?\\s*([+-]?\\d+)").find(shiftRaw)
+                // single letters: "White Balance Shift: R +2, B -2" or "Auto (R: +1, B: -2)"
+                ?: Regex("\\b${color.first()}\\s*:?\\s*([+-]?\\d+)").find("$shiftRaw $wbRaw")
                     ?.groupValues?.get(1)?.toIntOrNull()
+
+        // "Tone Curve: Highlights -1, Shadows 0" combined field
+        val toneCurve = field("Tone\\s+Curve") ?: ""
+        fun curve(part: String): Double? =
+            Regex("$part\\w*\\s*:?\\s*([+-]?\\d+(\\.\\d+)?)", RegexOption.IGNORE_CASE)
+                .find(toneCurve)?.groupValues?.get(1)?.toDoubleOrNull()
         val whiteBalance = when {
             kelvinMatch != null || "KELVIN" in wbRaw -> WhiteBalance.KELVIN
             "DAYLIGHT" in wbRaw -> WhiteBalance.DAYLIGHT
@@ -84,21 +91,24 @@ object FujiStyleCard {
                     else DRangePriority.OFF
                 }
             },
-            highlight = (num("Highlight") ?: 0.0).halfSteps().coerceIn(-2.0, 4.0),
-            shadow = (num("Shadow") ?: 0.0).halfSteps().coerceIn(-2.0, 4.0),
+            highlight = (num("Highlight") ?: curve("Highlight") ?: 0.0).halfSteps().coerceIn(-2.0, 4.0),
+            shadow = (num("Shadow") ?: curve("Shadow") ?: 0.0).halfSteps().coerceIn(-2.0, 4.0),
             color = (num("Colou?r")?.roundToInt() ?: 0).coerceIn(-4, 4),
             sharpness = ((num("Sharpness") ?: num("Sharpening"))?.roundToInt() ?: 0).coerceIn(-4, 4),
             noiseReduction = ((num("High\\s+ISO\\s+NR") ?: num("Noise\\s+Reduction"))?.roundToInt() ?: 0)
                 .coerceIn(-4, 4),
-            // Combined form "Grain Effect: Strong, Small" or split Roughness/Size fields
+            // Combined form "Grain Effect: Strong, Small", split Roughness/Size
+            // fields, or bare "Grain: Off"
             grainEffect = strength(
                 field("Grain\\s+Effect\\s*-?\\s*Roughness") ?: field("Grain\\s+Effect")
+                    ?: field("Grain")
             ),
             grainSize = if (
-                (field("Grain\\s+Effect\\s*-?\\s*Size") ?: field("Grain\\s+Effect") ?: "")
-                    .contains("large", true)
+                (field("Grain\\s+Effect\\s*-?\\s*Size") ?: field("Grain\\s+Effect")
+                    ?: field("Grain") ?: "").contains("large", true)
             ) GrainSize.LARGE else GrainSize.SMALL,
-            colorChromeEffect = strength(field("Color\\s+Chrome\\s+Effect")),
+            // "Color Chrome Effect" or bare "Chrome Effect"
+            colorChromeEffect = strength(field("(?:Color\\s+)?Chrome\\s+Effect")),
             // "Color FX Blue" (FujiStyle) or "Color Chrome Effect Blue" (Fuji X Weekly)
             colorChromeFxBlue = strength(field("Color\\s+(?:Chrome\\s+)?(?:FX|Effect)\\s+Blue")),
             clarity = (num("Clarity")?.roundToInt() ?: 0).coerceIn(-5, 5),

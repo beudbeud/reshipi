@@ -272,6 +272,38 @@ class FujiStyleCardTest {
     }
 
     @Test
+    fun parsesCarlCruzDialect() {
+        // Bare "Grain", "Chrome Effect" without Color, shifts as "(R: +1, B: -2)",
+        // combined "Tone Curve: Highlights -1, Shadows 0"
+        val r = FujiStyleCard.parse(
+            """
+            Film Simulation: Classic Chrome
+            Grain: Off
+            Chrome Effect: Strong
+            White Balance: Auto (R: +1, B: -2)
+            Dynamic Range: Auto
+            Tone Curve: Highlights -1, Shadows 0
+            Color: +4
+            Sharpness: 0
+            High ISO NR: -4
+            Clarity: 0
+            """.trimIndent(),
+            tag = "web",
+        )!!
+        assertEquals(FilmSimulation.CLASSIC_CHROME, r.filmSimulation)
+        assertEquals(Strength.OFF, r.grainEffect)
+        assertEquals(Strength.STRONG, r.colorChromeEffect)
+        assertEquals(WhiteBalance.AUTO, r.whiteBalance)
+        assertEquals(1, r.wbShiftRed)
+        assertEquals(-2, r.wbShiftBlue)
+        assertEquals(DynamicRange.AUTO, r.dynamicRange)
+        assertEquals(-1.0, r.highlight, 0.0)
+        assertEquals(0.0, r.shadow, 0.0)
+        assertEquals(4, r.color)
+        assertEquals(-4, r.noiseReduction)
+    }
+
+    @Test
     fun rejectsTextWithoutFilmSimulation() {
         assertNull(FujiStyleCard.parse("random text with no recipe"))
         assertNull(FujiStyleCard.parse("Film Simulation: SOMETHING UNKNOWN | Red: 1"))

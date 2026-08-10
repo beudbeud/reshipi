@@ -19,6 +19,7 @@ object WebImport {
         val recipe = FujiStyleCard.parse(text, tag = "fujixweekly") ?: return null
 
         val title = Regex("property=\"og:title\" content=\"([^\"]+)\"").find(html)?.groupValues?.get(1)
+            ?: Regex("<title>([^<|–—-]+)").find(html)?.groupValues?.get(1)?.trim()
         val name = title?.substringAfterLast("Recipe:")?.trim()?.takeIf { it.isNotBlank() }
             ?: recipe.name.ifBlank { "Import" }
         val gen = Regex("X-Trans (V|IV|III|II|I)\\b").find(title ?: "")?.groupValues?.get(1)?.let {
