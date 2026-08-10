@@ -28,9 +28,12 @@ class FujiCamera private constructor(
     companion object {
         const val FUJI_VENDOR_ID = 0x04CB
         private const val TIMEOUT_MS = 8000
-        // 16KB: bulkTransfer's safe maximum on all API levels / host controllers
+        // 16KB: bulkTransfer's safe maximum on all API levels / host controllers.
+        // Writes must use it too — a 256KB write is rejected outright (-1), which
+        // only ever showed up on the first big one, the RAF upload. Keep any value
+        // here a multiple of 512: a short packet tells the camera the phase is over.
         private const val READ_CHUNK = 16 * 1024
-        private const val SEND_CHUNK = 256 * 1024
+        private const val SEND_CHUNK = 16 * 1024
         private const val PRESET_SLOT = 0xD18C
         private const val PRESET_NAME = 0xD18D
 
@@ -74,14 +77,22 @@ class FujiCamera private constructor(
 
     private fun send(type: Int, code: Int, txId: Int, params: IntArray, data: ByteArray) {
         val packet = packContainer(type, code, txId, params, data)
+        val started = System.currentTimeMillis()
         var offset = 0
         while (offset < packet.size) {
             val len = minOf(SEND_CHUNK, packet.size - offset)
             val sent = connection.bulkTransfer(epOut, packet, offset, len, TIMEOUT_MS)
             if (sent != len) {
-                throw IOException("USB write failed ($sent/$len) ${opName(code)} [$diag]")
+                throw IOException(
+                    "USB write failed ($sent/$len at $offset/${packet.size}) ${opName(code)} [$diag]"
+                )
             }
             offset += len
+        }
+        // A RAF is thousands of chunks; report the rate so a slow link is visible
+        if (packet.size > SEND_CHUNK) {
+            val ms = (System.currentTimeMillis() - started).coerceAtLeast(1)
+            DebugLog.log("sent ${packet.size / 1024}KB ${opName(code)} in ${ms}ms (${packet.size / ms}KB/s)")
         }
     }
 
