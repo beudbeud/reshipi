@@ -76,7 +76,10 @@ fun RafPreviewDialog(recipe: Recipe, repo: RecipeRepository, onDismiss: () -> Un
                         // Checking here turns a bare 0x2002 later into a real answer.
                         val rafModel = RafFile.cameraModel(raf)
                         val body = camera.modelName()
-                        DebugLog.log("RAF from \"$rafModel\", camera is \"$body\"")
+                        DebugLog.log(
+                            "RAF from \"$rafModel\" v${RafFile.formatVersion(raf)} " +
+                                "${raf.size / 1024}KB, camera is \"$body\""
+                        )
                         if (rafModel == null) {
                             throw java.io.IOException(context.getString(R.string.raf_not_a_raf))
                         }

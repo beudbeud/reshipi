@@ -15,12 +15,19 @@ package com.beudbeud.fuji.data
  */
 object RafFile {
     private const val MAGIC = "FUJIFILMCCD-RAW"
+    private const val VERSION_OFFSET = 0x10
+    private const val VERSION_LENGTH = 4
     private const val MODEL_OFFSET = 0x1C
     private const val MODEL_LENGTH = 32
 
     fun isRaf(bytes: ByteArray): Boolean =
         bytes.size > MODEL_OFFSET + MODEL_LENGTH &&
             bytes.decodeToString(0, MAGIC.length) == MAGIC
+
+    /** Header format version ("0201"…) — differs between RAF compression schemes. */
+    fun formatVersion(bytes: ByteArray): String? =
+        if (!isRaf(bytes)) null
+        else bytes.decodeToString(VERSION_OFFSET, VERSION_OFFSET + VERSION_LENGTH).trim().ifBlank { null }
 
     /** Camera model that produced the file, or null when this is not a RAF. */
     fun cameraModel(bytes: ByteArray): String? {
