@@ -54,7 +54,11 @@ import androidx.compose.ui.unit.dp
 import com.beudbeud.fuji.R
 import com.beudbeud.fuji.data.DebugLog
 import com.beudbeud.fuji.data.FujiExif
+import com.beudbeud.fuji.data.FujiStyleCard
 import com.beudbeud.fuji.data.RecipeRepository
+import com.google.mlkit.vision.common.InputImage
+import com.google.mlkit.vision.text.TextRecognition
+import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import com.beudbeud.fuji.model.Recipe
 import com.beudbeud.fuji.model.cameraLabel
 import com.google.mlkit.vision.barcode.common.Barcode
@@ -130,11 +134,31 @@ fun ListScreen(
         }
     }
 
+    val cardImportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        if (uri != null) {
+            val fail: (Throwable?) -> Unit = {
+                scope.launch { snackbar.showSnackbar(context.getString(R.string.card_parse_failed)) }
+            }
+            runCatching {
+                TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
+                    .process(InputImage.fromFilePath(context, uri))
+                    .addOnSuccessListener { ocr ->
+                        val recipe = FujiStyleCard.parse(ocr.text)
+                        if (recipe == null) fail(null) else onCreateFromPhoto(recipe)
+                    }
+                    .addOnFailureListener(fail)
+            }.onFailure(fail)
+        }
+    }
+
     val shown = recipes
         .filter { !favOnly || it.favorite }
         .filter {
             query.isBlank() || it.name.contains(query, ignoreCase = true) ||
-                it.filmSimulation.label.contains(query, ignoreCase = true)
+                it.filmSimulation.label.contains(query, ignoreCase = true) ||
+                it.tags.any { tag -> tag.contains(query, ignoreCase = true) }
         }
         .sortedBy { it.name.lowercase() }
 
@@ -210,6 +234,15 @@ fun ListScreen(
                                 onClick = {
                                     menuOpen = false
                                     photoImportLauncher.launch(
+                                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                                    )
+                                },
+                            )
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.import_fujistyle)) },
+                                onClick = {
+                                    menuOpen = false
+                                    cardImportLauncher.launch(
                                         PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
                                     )
                                 },

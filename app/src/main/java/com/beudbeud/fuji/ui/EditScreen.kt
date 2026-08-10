@@ -230,6 +230,17 @@ fun EditScreen(
                 minLines = 3,
                 modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
             )
+            var tagsText by remember { mutableStateOf(draft.tags.joinToString(", ")) }
+            OutlinedTextField(
+                value = tagsText,
+                onValueChange = {
+                    tagsText = it
+                    draft = draft.copy(tags = it.split(',').map(String::trim).filter(String::isNotEmpty))
+                },
+                label = { Text(stringResource(R.string.tags_label)) },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+            )
 
             SectionHeader(stringResource(R.string.photos))
             LazyRow {

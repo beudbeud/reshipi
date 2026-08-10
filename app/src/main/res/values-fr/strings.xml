@@ -4,6 +4,10 @@
 
     <string name="new_recipe">Nouvelle recette</string>
     <string name="new_from_photo">Nouvelle recette depuis une photo</string>
+    <string name="import_fujistyle">Importer une carte FujiStyle</string>
+    <string name="card_parse_failed">Impossible de lire une recette dans cette image</string>
+    <string name="tags_label">Tags (séparés par des virgules)</string>
+    <string name="tags">Tags</string>
     <string name="photo_no_recipe">Aucun réglage Fujifilm trouvé dans cette photo. Seuls les JPEG non retouchés sortis du boîtier fonctionnent.</string>
     <string name="edit_recipe">Modifier la recette</string>
     <string name="save">Enregistrer</string>

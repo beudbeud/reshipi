@@ -142,6 +142,7 @@ data class Recipe(
     val iso: String = "Auto",
     val exposureCompensation: String = "0",
     val notes: String = "",
+    val tags: List<String> = emptyList(),
     val favorite: Boolean = false,
     val photos: List<String> = emptyList(),
     val updatedAt: Long = 0,

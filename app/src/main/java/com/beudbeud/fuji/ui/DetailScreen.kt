@@ -185,6 +185,9 @@ fun DetailScreen(
             }
             DetailRow(stringResource(R.string.iso), recipe.iso)
             DetailRow(stringResource(R.string.exposure_compensation), recipe.exposureCompensation)
+            if (recipe.tags.isNotEmpty()) {
+                DetailRow(stringResource(R.string.tags), recipe.tags.joinToString(", "))
+            }
             if (recipe.notes.isNotBlank()) {
                 SectionHeader(stringResource(R.string.notes))
                 Text(recipe.notes, style = MaterialTheme.typography.bodyMedium)
