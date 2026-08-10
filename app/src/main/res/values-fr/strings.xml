@@ -134,4 +134,13 @@
     <string name="raf_not_a_raf">Ce fichier n\'est pas un RAF.</string>
     <string name="raf_wrong_camera">Ce RAF vient d\'un %1$s. La conversion interne n\'accepte que les fichiers du boîtier connecté (%2$s).</string>
     <string name="raf_is_jpeg">C\'est un JPEG, pas un RAF. Choisis le fichier .RAF — et prends-le dans Fichiers plutôt que dans Google Photos, qui renvoie une copie convertie.</string>
+    <string name="raf_wb_note">La balance des blancs est celle de la prise de vue : le boîtier interdit de la changer à la conversion. Les décalages R/B, eux, sont appliqués.</string>
+    <string name="lut_export">Exporter en LUT (.cube)</string>
+    <string name="lut_hint">Choisis un RAF pris avec ce boîtier. Il est développé deux fois — neutre, puis avec la recette — et la différence devient la LUT.</string>
+    <string name="lut_rendering_base">Développement du rendu neutre…</string>
+    <string name="lut_rendering_recipe">Développement avec la recette…</string>
+    <string name="lut_building">Construction de la LUT…</string>
+    <string name="lut_coverage">%1$d%% du cube de couleurs mesuré</string>
+    <string name="lut_caveat">Les couleurs absentes de l\'image sont interpolées. Une photo variée et colorée donne une meilleure LUT. Clarté et grain sont des effets spatiaux, non représentables dans une LUT.</string>
+    <string name="lut_save">Enregistrer le .cube</string>
 </resources>

@@ -134,4 +134,13 @@
     <string name="raf_not_a_raf">That file is not a RAF.</string>
     <string name="raf_wrong_camera">This RAF was shot on a %1$s. In-camera conversion only accepts files from the connected body (%2$s).</string>
     <string name="raf_is_jpeg">That is a JPEG, not a RAF. Pick the .RAF file — and choose it from Files rather than Google Photos, which hands back a converted copy.</string>
+    <string name="raf_wb_note">White balance comes from the shot: the camera does not allow changing it during conversion. The R/B shifts are applied.</string>
+    <string name="lut_export">Export as LUT (.cube)</string>
+    <string name="lut_hint">Pick a RAF shot on this camera. It is developed twice — neutral, then with the recipe — and the difference becomes the LUT.</string>
+    <string name="lut_rendering_base">Developing the neutral render…</string>
+    <string name="lut_rendering_recipe">Developing with the recipe…</string>
+    <string name="lut_building">Building the LUT…</string>
+    <string name="lut_coverage">%1$d%% of the colour cube measured</string>
+    <string name="lut_caveat">Colours the frame did not contain are interpolated. A varied, colourful shot gives a better LUT. Clarity and grain are spatial effects and cannot be captured in a LUT.</string>
+    <string name="lut_save">Save .cube</string>
 </resources>

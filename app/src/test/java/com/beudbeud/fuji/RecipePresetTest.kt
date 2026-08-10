@@ -96,7 +96,9 @@ class RecipePresetTest {
 
         assertEquals(0x0B, f(8))      // Classic Chrome
         assertEquals(400, f(6))       // DR raw %
-        assertEquals(0x0004, f(12))   // WB Daylight
+        // Index 12 (white balance mode) is left as the RAF had it: the camera
+        // clamps it to 0 whatever we write, so patchProfile no longer touches it.
+        assertEquals(0, f(12))
         assertEquals(2, f(13))        // shift R
         assertEquals(-5, f(14))       // shift B
         assertEquals(15, f(16))       // highlight ×10

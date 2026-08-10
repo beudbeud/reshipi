@@ -336,7 +336,7 @@ class FujiCamera private constructor(
     }
 
     /** Current conversion profile (0xD185) — requires a RAF loaded first. */
-    fun getProfile(): ByteArray {
+    fun getProfile(quiet: Boolean = false): ByteArray {
         // The camera has just swallowed a RAF of tens of megabytes and has to
         // ingest it before a conversion profile exists; asking immediately after
         // the upload answers 0x2002. Poll rather than fail on the first try.
@@ -347,7 +347,8 @@ class FujiCamera private constructor(
                 code = it.first; data = it.second
             }
             if (code == PtpResp.OK && data.isNotEmpty()) {
-                DebugLog.log("getProfile: ${data.size} bytes (attempt $attempt)")
+                // Quiet on the happy path: probing calls this once per candidate
+                if (attempt > 1 || !quiet) DebugLog.log("getProfile: ${data.size} bytes (attempt $attempt)")
                 return data
             }
             Thread.sleep(500)
@@ -375,7 +376,7 @@ class FujiCamera private constructor(
             java.nio.ByteBuffer.wrap(trial).order(java.nio.ByteOrder.LITTLE_ENDIAN)
                 .putInt(off + index * 4, candidate)
             setProfile(trial)
-            candidate to (profileParams(getProfile()).getOrNull(index) ?: Int.MIN_VALUE)
+            candidate to (profileParams(getProfile(quiet = true)).getOrNull(index) ?: Int.MIN_VALUE)
         }
         setProfile(profile) // leave the caller's profile in place
         DebugLog.log(

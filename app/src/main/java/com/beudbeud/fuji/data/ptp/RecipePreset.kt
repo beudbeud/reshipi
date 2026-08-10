@@ -228,8 +228,10 @@ fun Recipe.patchProfile(base: ByteArray): ByteArray {
     set(9, grain)
     set(10, colorChromeEffect.ordinal + 1)
     set(25, colorChromeFxBlue.ordinal + 1)
-    // No confirmed code (Custom 2/3): keep the RAF's white balance
-    WB_CODE[whiteBalance]?.let { set(12, it) }
+    // Index 12 is the white balance mode, and the camera clamps it to 0 whatever
+    // we write — probed with every ordinal 0-12 and every 0x800X code on an
+    // X-T30 III, only 0 survives. RAW conversion keeps the shot's own white
+    // balance; the R/B shifts below (13/14) are applied on top and do stick.
     if (whiteBalance == WhiteBalance.KELVIN && kelvin != null) set(15, kelvin)
     set(13, wbShiftRed)
     set(14, wbShiftBlue)

@@ -160,6 +160,13 @@ fun RafPreviewDialog(recipe: Recipe, repo: RecipeRepository, onDismiss: () -> Un
                 if (!busy && preview == null && status == null) {
                     Text(stringResource(R.string.raf_hint), style = MaterialTheme.typography.bodySmall)
                 }
+                if (preview != null) {
+                    Text(
+                        stringResource(R.string.raf_wb_note),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
         },
         confirmButton = {
@@ -184,7 +191,7 @@ fun RafPreviewDialog(recipe: Recipe, repo: RecipeRepository, onDismiss: () -> Un
     )
 }
 
-private fun decodeSampled(jpeg: ByteArray, maxDim: Int): Bitmap? {
+internal fun decodeSampled(jpeg: ByteArray, maxDim: Int): Bitmap? {
     val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
     BitmapFactory.decodeByteArray(jpeg, 0, jpeg.size, bounds)
     var sample = 1
