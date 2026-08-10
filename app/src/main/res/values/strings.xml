@@ -117,4 +117,5 @@
     <string name="wb_incandescent">Incandescent</string>
     <string name="wb_underwater">Underwater</string>
     <string name="wb_kelvin">Kelvin</string>
+    <string name="open_in_library">Open</string>
 </resources>

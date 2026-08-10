@@ -178,35 +178,7 @@ fun DetailScreen(
                 recipe.tags.forEach { InfoChip("#$it") }
             }
             HorizontalDivider(Modifier.padding(bottom = 4.dp))
-            DetailRow(
-                stringResource(R.string.white_balance),
-                stringResource(recipe.whiteBalance.labelRes) +
-                    (recipe.kelvin?.let { " ${it}K" }.takeIf { recipe.whiteBalance == WhiteBalance.KELVIN } ?: "") +
-                    "  R${formatSigned(recipe.wbShiftRed)} B${formatSigned(recipe.wbShiftBlue)}",
-            )
-            DetailRow(stringResource(R.string.dynamic_range), recipe.dynamicRange.label)
-            if (gen.hasDRangePriority) {
-                DetailRow(stringResource(R.string.d_range_priority), stringResource(recipe.dRangePriority.labelRes))
-            }
-            DetailRow(stringResource(R.string.highlight), formatSigned(recipe.highlight))
-            DetailRow(stringResource(R.string.shadow), formatSigned(recipe.shadow))
-            DetailRow(stringResource(R.string.color), formatSigned(recipe.color))
-            DetailRow(stringResource(R.string.sharpness), formatSigned(recipe.sharpness))
-            DetailRow(stringResource(R.string.noise_reduction), formatSigned(recipe.noiseReduction))
-            if (gen.hasGrainEffect) {
-                var grain = stringResource(recipe.grainEffect.labelRes)
-                if (gen.hasGrainSize && recipe.grainEffect != Strength.OFF) {
-                    grain += " · " + stringResource(recipe.grainSize.labelRes)
-                }
-                DetailRow(stringResource(R.string.grain_effect), grain)
-            }
-            if (gen.hasColorChrome) {
-                DetailRow(stringResource(R.string.color_chrome_effect), stringResource(recipe.colorChromeEffect.labelRes))
-                DetailRow(stringResource(R.string.color_chrome_fx_blue), stringResource(recipe.colorChromeFxBlue.labelRes))
-            }
-            if (gen.hasClarity) {
-                DetailRow(stringResource(R.string.clarity), formatSigned(recipe.clarity))
-            }
+            RecipeSettingsRows(recipe)
             DetailRow(stringResource(R.string.iso), recipe.iso)
             DetailRow(stringResource(R.string.exposure_compensation), recipe.exposureCompensation)
             if (recipe.notes.isNotBlank()) {
@@ -307,6 +279,46 @@ private fun shareRecipe(context: Context, recipe: Recipe) {
         .putExtra(Intent.EXTRA_SUBJECT, recipe.name)
         .putExtra(Intent.EXTRA_TEXT, text)
     context.startActivity(Intent.createChooser(intent, null))
+}
+
+/**
+ * The settings the camera itself stores, shown only where the generation has them.
+ * Shared with the slot board so a preset read back over USB renders identically.
+ * ISO and exposure compensation are deliberately absent: they live in the recipe,
+ * not in a camera preset.
+ */
+@Composable
+fun RecipeSettingsRows(recipe: Recipe) {
+    val gen = recipe.generation
+    DetailRow(
+        stringResource(R.string.white_balance),
+        stringResource(recipe.whiteBalance.labelRes) +
+            (recipe.kelvin?.let { " ${it}K" }.takeIf { recipe.whiteBalance == WhiteBalance.KELVIN } ?: "") +
+            "  R${formatSigned(recipe.wbShiftRed)} B${formatSigned(recipe.wbShiftBlue)}",
+    )
+    DetailRow(stringResource(R.string.dynamic_range), recipe.dynamicRange.label)
+    if (gen.hasDRangePriority) {
+        DetailRow(stringResource(R.string.d_range_priority), stringResource(recipe.dRangePriority.labelRes))
+    }
+    DetailRow(stringResource(R.string.highlight), formatSigned(recipe.highlight))
+    DetailRow(stringResource(R.string.shadow), formatSigned(recipe.shadow))
+    DetailRow(stringResource(R.string.color), formatSigned(recipe.color))
+    DetailRow(stringResource(R.string.sharpness), formatSigned(recipe.sharpness))
+    DetailRow(stringResource(R.string.noise_reduction), formatSigned(recipe.noiseReduction))
+    if (gen.hasGrainEffect) {
+        var grain = stringResource(recipe.grainEffect.labelRes)
+        if (gen.hasGrainSize && recipe.grainEffect != Strength.OFF) {
+            grain += " · " + stringResource(recipe.grainSize.labelRes)
+        }
+        DetailRow(stringResource(R.string.grain_effect), grain)
+    }
+    if (gen.hasColorChrome) {
+        DetailRow(stringResource(R.string.color_chrome_effect), stringResource(recipe.colorChromeEffect.labelRes))
+        DetailRow(stringResource(R.string.color_chrome_fx_blue), stringResource(recipe.colorChromeFxBlue.labelRes))
+    }
+    if (gen.hasClarity) {
+        DetailRow(stringResource(R.string.clarity), formatSigned(recipe.clarity))
+    }
 }
 
 @Composable

@@ -18,11 +18,14 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -52,6 +55,7 @@ import com.beudbeud.fuji.data.DebugLog
 import com.beudbeud.fuji.data.RecipeRepository
 import com.beudbeud.fuji.data.ptp.recipeFromPresetProps
 import com.beudbeud.fuji.model.Recipe
+import com.beudbeud.fuji.model.formatSigned
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -137,9 +141,15 @@ fun CameraSlotsScreen(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 items(slots, key = { it.first }) { (slot, recipe) ->
+                    // A slot written from the library keeps its (truncated) name, so
+                    // that is the only handle we have to link it back to a recipe.
+                    val known = recipe?.let { r ->
+                        recipes.firstOrNull { it.name.take(SLOT_NAME_MAX).equals(r.name, ignoreCase = true) }
+                    }
                     SlotCard(
                         slot = slot,
                         recipe = recipe,
+                        known = known,
                         enabled = !busy,
                         onImport = {
                             if (recipe != null) {
@@ -148,6 +158,7 @@ fun CameraSlotsScreen(
                             }
                         },
                         onWrite = { pickForSlot = slot },
+                        onOpenKnown = { known?.let { onOpenRecipe(it.id) } },
                     )
                 }
             }
@@ -179,51 +190,90 @@ fun CameraSlotsScreen(
 private fun SlotCard(
     slot: Int,
     recipe: Recipe?,
+    known: Recipe?,
     enabled: Boolean,
     onImport: () -> Unit,
     onWrite: () -> Unit,
+    onOpenKnown: () -> Unit,
 ) {
+    var expanded by remember { mutableStateOf(false) }
     Card(Modifier.fillMaxWidth()) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(start = 12.dp, top = 8.dp, bottom = 8.dp, end = 4.dp),
-        ) {
-            Box(
-                Modifier
-                    .size(40.dp)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(
-                        recipe?.let { simAccent(it.filmSimulation) }
-                            ?: MaterialTheme.colorScheme.surfaceVariant
-                    ),
-                contentAlignment = Alignment.Center,
+        Column {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .clickable(enabled = recipe != null) { expanded = !expanded }
+                    .padding(start = 12.dp, top = 8.dp, bottom = 8.dp, end = 12.dp),
             ) {
-                Text("C$slot", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
-            }
-            Column(Modifier.weight(1f).padding(start = 12.dp)) {
-                Text(
-                    recipe?.name ?: stringResource(R.string.slot_empty),
-                    style = MaterialTheme.typography.titleMedium,
-                )
-                recipe?.let {
+                Box(
+                    Modifier
+                        .size(40.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(
+                            recipe?.let { simAccent(it.filmSimulation) }
+                                ?: MaterialTheme.colorScheme.surfaceVariant
+                        ),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text("C$slot", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+                }
+                Column(Modifier.weight(1f).padding(start = 12.dp)) {
                     Text(
-                        it.filmSimulation.label,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        recipe?.name ?: stringResource(R.string.slot_empty),
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                    recipe?.let {
+                        Text(
+                            it.filmSimulation.label + " · " + summarize(it),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+                if (recipe != null) {
+                    Icon(
+                        if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             }
-            if (recipe != null) {
-                TextButton(enabled = enabled, onClick = onImport) {
-                    Text(stringResource(R.string.import_from_camera))
+            if (expanded && recipe != null) {
+                Column(Modifier.padding(horizontal = 12.dp)) {
+                    HorizontalDivider(Modifier.padding(bottom = 4.dp))
+                    RecipeSettingsRows(recipe)
                 }
             }
-            TextButton(enabled = enabled, onClick = onWrite) {
-                Text(stringResource(R.string.write_here))
+            Row(
+                horizontalArrangement = Arrangement.End,
+                modifier = Modifier.fillMaxWidth().padding(end = 4.dp, bottom = 4.dp),
+            ) {
+                // Already in the library under this name: opening it beats importing a duplicate
+                if (known != null) {
+                    TextButton(enabled = enabled, onClick = onOpenKnown) {
+                        Text(stringResource(R.string.open_in_library))
+                    }
+                } else if (recipe != null) {
+                    TextButton(enabled = enabled, onClick = onImport) {
+                        Text(stringResource(R.string.import_from_camera))
+                    }
+                }
+                TextButton(enabled = enabled, onClick = onWrite) {
+                    Text(stringResource(R.string.write_here))
+                }
             }
         }
     }
 }
+
+/** One-line gist of the settings, so the collapsed card already says something useful. */
+@Composable
+private fun summarize(r: Recipe): String = listOf(
+    stringResource(r.whiteBalance.labelRes),
+    "DR${r.dynamicRange.label.filter { it.isDigit() }.ifEmpty { "A" }}",
+    "H${formatSigned(r.highlight)}",
+    "S${formatSigned(r.shadow)}",
+).joinToString(" · ")
 
 @Composable
 private fun RecipePickerDialog(
