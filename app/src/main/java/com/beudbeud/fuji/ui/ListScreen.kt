@@ -5,6 +5,7 @@ import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import android.content.Intent
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -46,6 +47,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
@@ -170,9 +172,17 @@ fun ListScreen(
         .filter {
             query.isBlank() || it.name.contains(query, ignoreCase = true) ||
                 it.filmSimulation.label.contains(query, ignoreCase = true) ||
+                it.cameraLabel.contains(query, ignoreCase = true) ||
                 it.tags.any { tag -> tag.contains(query, ignoreCase = true) }
         }
         .sortedBy { it.name.lowercase() }
+
+    // Search suggestions from the data itself: tags, film simulations, cameras
+    val suggestions = remember(recipes) {
+        recipes.flatMap { it.tags }.distinct().sorted().map { "#$it" to it } +
+            recipes.map { it.filmSimulation.label }.distinct().sorted().map { it to it } +
+            recipes.map { it.cameraLabel }.distinct().sorted().map { it to it }
+    }
 
     if (showTextImport) {
         var textInput by remember { mutableStateOf("") }
@@ -354,6 +364,23 @@ fun ListScreen(
         snackbarHost = { SnackbarHost(snackbar) },
     ) { pad ->
         Column(Modifier.padding(pad).fillMaxSize()) {
+            if (searching) {
+                val visible = suggestions.filter { (_, value) ->
+                    value.contains(query, ignoreCase = true) && !value.equals(query, ignoreCase = true)
+                }
+                if (visible.isNotEmpty()) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier
+                            .horizontalScroll(rememberScrollState())
+                            .padding(horizontal = 16.dp, vertical = 4.dp),
+                    ) {
+                        visible.forEach { (label, value) ->
+                            SuggestionChip(onClick = { query = value }, label = { Text(label) })
+                        }
+                    }
+                }
+            }
             FilterChip(
                 selected = favOnly,
                 onClick = { favOnly = !favOnly },
