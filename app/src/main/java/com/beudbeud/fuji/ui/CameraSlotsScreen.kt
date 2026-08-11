@@ -83,6 +83,20 @@ fun CameraSlotsScreen(
     val slots: SnapshotStateList<Pair<Int, Recipe?>> = remember { mutableStateListOf() }
     var pickForSlot by remember { mutableIntStateOf(0) }
     var reload by remember { mutableIntStateOf(0) }
+    // Recipe picked for an occupied slot, waiting for the overwrite confirmation
+    var confirmWrite by remember { mutableStateOf<Pair<Recipe, Int>?>(null) }
+
+    val doWrite = { picked: Recipe, target: Int, backup: Boolean ->
+        scope.launch {
+            busy = true
+            status = context.getString(R.string.camera_writing)
+            // Reuse the send path so the slot is backed up first when asked
+            writeRecipeToSlot(context, picked, target, repo.takeIf { backup })?.let { status = it }
+            busy = false
+            reload++
+        }
+        Unit
+    }
 
     LaunchedEffect(reload) {
         busy = true
@@ -176,14 +190,24 @@ fun CameraSlotsScreen(
             onPicked = { picked ->
                 val target = pickForSlot
                 pickForSlot = 0
-                scope.launch {
-                    busy = true
-                    status = context.getString(R.string.camera_writing)
-                    // Reuse the send path so the slot is backed up first
-                    writeRecipeToSlot(context, picked, target, repo)?.let { status = it }
-                    busy = false
-                    reload++
+                // The board just read the camera, so occupancy is known locally
+                if (slots.firstOrNull { it.first == target }?.second != null) {
+                    confirmWrite = picked to target
+                } else {
+                    doWrite(picked, target, false)
                 }
+            },
+        )
+    }
+
+    confirmWrite?.let { (picked, target) ->
+        OverwriteSlotDialog(
+            slot = target,
+            existingName = slots.firstOrNull { it.first == target }?.second?.name ?: "",
+            onDismiss = { confirmWrite = null },
+            onConfirm = { backup ->
+                confirmWrite = null
+                doWrite(picked, target, backup)
             },
         )
     }

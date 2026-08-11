@@ -81,6 +81,9 @@
     <string name="wb_custom_3">Personnalisée 3</string>
     <string name="camera_wb_custom_warning">Cette balance des blancs n\'a pas de code boîtier confirmé et n\'est pas envoyée — règle-la à la main sur l\'appareil.</string>
     <string name="backup_slot_first">Sauvegarder d\'abord le contenu actuel du slot</string>
+    <string name="slot_overwrite_title">Écraser C%1$d ?</string>
+    <string name="slot_overwrite_text">C%1$d contient déjà « %2$s ».</string>
+    <string name="overwrite">Écraser</string>
     <string name="backup_slot_saved">Slot C%1$d sauvegardé sous « %2$s »</string>
     <string name="camera_slots">Mon boîtier (C1–C7)</string>
     <string name="slot_empty">Vide</string>

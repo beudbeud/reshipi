@@ -57,7 +57,25 @@ fun SendToCameraDialog(recipe: Recipe, repo: RecipeRepository, onDismiss: () -> 
     var slot by remember { mutableIntStateOf(7) }
     var busy by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf<String?>(null) }
-    var backupFirst by remember { mutableStateOf(true) }
+    // Name of the recipe currently in the slot, when asking before overwriting
+    var askOverwrite by remember { mutableStateOf<String?>(null) }
+
+    val doSend = { backup: Boolean ->
+        busy = true
+        status = context.getString(R.string.camera_writing)
+        scope.launch {
+            val (ok, message) = sendRecipe(context, recipe, slot, repo.takeIf { backup })
+            busy = false
+            if (ok) {
+                // Clean success: close and confirm with a toast
+                android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_SHORT).show()
+                onDismiss()
+            } else {
+                status = message
+            }
+        }
+        Unit
+    }
 
     AlertDialog(
         onDismissRequest = { if (!busy) onDismiss() },
@@ -75,17 +93,6 @@ fun SendToCameraDialog(recipe: Recipe, repo: RecipeRepository, onDismiss: () -> 
                         )
                     }
                 }
-                // Writing a slot overwrites whatever was in it; keep a copy first.
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.clickable(enabled = !busy) { backupFirst = !backupFirst },
-                ) {
-                    Checkbox(checked = backupFirst, onCheckedChange = { backupFirst = it }, enabled = !busy)
-                    Text(
-                        stringResource(R.string.backup_slot_first),
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                }
                 status?.let {
                     Text(it, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 8.dp))
                 }
@@ -95,17 +102,17 @@ fun SendToCameraDialog(recipe: Recipe, repo: RecipeRepository, onDismiss: () -> 
             TextButton(
                 enabled = !busy,
                 onClick = {
+                    // Occupied slot → confirm (and offer a backup) before writing
                     busy = true
-                    status = context.getString(R.string.camera_writing)
+                    status = context.getString(R.string.camera_reading)
                     scope.launch {
-                        val (ok, message) = sendRecipe(context, recipe, slot, repo.takeIf { backupFirst })
-                        busy = false
-                        if (ok) {
-                            // Clean success: close and confirm with a toast
-                            android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_SHORT).show()
-                            onDismiss()
+                        val existing = readSlotName(context, slot)
+                        if (existing == null) {
+                            doSend(false)
                         } else {
-                            status = message
+                            busy = false
+                            status = null
+                            askOverwrite = existing
                         }
                     }
                 },
@@ -117,17 +124,79 @@ fun SendToCameraDialog(recipe: Recipe, repo: RecipeRepository, onDismiss: () -> 
             }
         },
     )
+
+    askOverwrite?.let { existing ->
+        OverwriteSlotDialog(
+            slot = slot,
+            existingName = existing,
+            onDismiss = { askOverwrite = null },
+            onConfirm = { backup ->
+                askOverwrite = null
+                doSend(backup)
+            },
+        )
+    }
 }
 
+/** "C2 already contains X — overwrite?", with the backup choice where it matters. */
+@Composable
+internal fun OverwriteSlotDialog(
+    slot: Int,
+    existingName: String,
+    onDismiss: () -> Unit,
+    onConfirm: (backup: Boolean) -> Unit,
+) {
+    var backup by remember { mutableStateOf(true) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.slot_overwrite_title, slot)) },
+        text = {
+            Column {
+                Text(stringResource(R.string.slot_overwrite_text, slot, existingName))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(top = 8.dp).clickable { backup = !backup },
+                ) {
+                    Checkbox(checked = backup, onCheckedChange = { backup = it })
+                    Text(
+                        stringResource(R.string.backup_slot_first),
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onConfirm(backup) }) { Text(stringResource(R.string.overwrite)) }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
+        },
+    )
+}
+
+/** The name of the recipe in [slot], or null when the slot is empty or unreadable.
+ *  Connection problems end up as null too: the write that follows fails with the
+ *  proper message, which beats failing twice. */
+private suspend fun readSlotName(context: Context, slot: Int): String? = runCatching {
+    val camera = connectFujiCamera(context)
+    withContext(Dispatchers.IO) {
+        try {
+            camera.readPresets(slot..slot).firstOrNull()?.name?.takeIf { it.isNotBlank() }
+        } finally {
+            camera.close()
+        }
+    }
+}.getOrNull()
+
 /**
- * Write [recipe] into slot [slot], backing the slot up into [repo] first.
+ * Write [recipe] into slot [slot], backing the slot up into [repo] first when given.
  * Returns a message to show, or null when it succeeded with nothing to report.
  */
 internal suspend fun writeRecipeToSlot(
     context: Context,
     recipe: Recipe,
     slot: Int,
-    repo: RecipeRepository,
+    repo: RecipeRepository?,
 ): String? {
     val (ok, message) = sendRecipe(context, recipe, slot, repo)
     return if (ok) null else message

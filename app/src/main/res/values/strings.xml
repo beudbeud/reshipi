@@ -82,6 +82,9 @@
     <string name="wb_custom_3">Custom 3</string>
     <string name="camera_wb_custom_warning">This white balance has no confirmed camera code and is not written — set it by hand on the body.</string>
     <string name="backup_slot_first">Back up the slot\'s current content first</string>
+    <string name="slot_overwrite_title">Overwrite C%1$d?</string>
+    <string name="slot_overwrite_text">C%1$d already contains “%2$s”.</string>
+    <string name="overwrite">Overwrite</string>
     <string name="backup_slot_saved">Slot C%1$d backed up as “%2$s”</string>
     <string name="camera_slots">My camera (C1–C7)</string>
     <string name="slot_empty">Empty</string>
