@@ -33,8 +33,10 @@ every photosite in it before use.
 
 It was derived from a sample frame published by
 [PhotographyBlog](https://www.photographyblog.com/reviews/fujifilm_x_t30_iii_review).
-Nothing of that photograph remains: the embedded preview has been replaced by a
-rendering of the chart itself, the sensor data is not stored at all, and the
-body serial number is zeroed. What is left is the format scaffolding plus
-FUJIFILM's sensor description tags — the readout size and the X-Trans mosaic —
-which the app reads rather than hard-codes so that other bodies work too.
+The photograph itself does not remain: the sensor data is not stored at all,
+and the embedded preview's image has been replaced by a rendering of the
+chart. The preview's metadata segments (EXIF and maker notes) are kept as-is —
+the camera refuses to convert a file without them. What is left is the format
+scaffolding plus FUJIFILM's sensor description tags — the readout size and the
+X-Trans mosaic — which the app reads rather than hard-codes so that other
+bodies work too.

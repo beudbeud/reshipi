@@ -62,8 +62,10 @@ fun LutExportDialog(recipe: Recipe, onDismiss: () -> Unit) {
     var busy by remember { mutableStateOf(false) }
     var cube by remember { mutableStateOf<String?>(null) }
     var coverage by remember { mutableStateOf(0f) }
-    var synthetic by remember { mutableStateOf(false) }
+    // Measured on an X-T30 III: a chart reaches 75% of the cube where the best
+    // photograph reached 35% — so it is the default whenever it can run.
     var donorReady by remember { mutableStateOf(DonorRaf.exists(context)) }
+    var synthetic by remember { mutableStateOf(donorReady) }
 
     val saver = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/octet-stream")
