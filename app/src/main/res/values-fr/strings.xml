@@ -113,6 +113,7 @@
 
     <string name="debug_logs">Logs de débogage</string>
     <string name="close">Fermer</string>
+    <string name="ok">OK</string>
     <string name="clear">Effacer</string>
 
     <string name="off">Désactivé</string>

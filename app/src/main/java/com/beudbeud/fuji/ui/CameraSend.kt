@@ -57,6 +57,8 @@ fun SendToCameraDialog(recipe: Recipe, repo: RecipeRepository, onDismiss: () -> 
     var slot by remember { mutableIntStateOf(7) }
     var busy by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf<String?>(null) }
+    // Written: the send is over, only an OK button is left
+    var done by remember { mutableStateOf(false) }
     // Name of the recipe currently in the slot, when asking before overwriting
     var askOverwrite by remember { mutableStateOf<String?>(null) }
 
@@ -64,15 +66,10 @@ fun SendToCameraDialog(recipe: Recipe, repo: RecipeRepository, onDismiss: () -> 
         busy = true
         status = context.getString(R.string.camera_writing)
         scope.launch {
-            val (ok, message) = sendRecipe(context, recipe, slot, repo.takeIf { backup })
+            val result = sendRecipe(context, recipe, slot, repo.takeIf { backup })
             busy = false
-            if (ok) {
-                // Clean success: close and confirm with a toast
-                android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_SHORT).show()
-                onDismiss()
-            } else {
-                status = message
-            }
+            done = result.written
+            status = result.message
         }
         Unit
     }
@@ -82,15 +79,17 @@ fun SendToCameraDialog(recipe: Recipe, repo: RecipeRepository, onDismiss: () -> 
         title = { Text(stringResource(R.string.send_to_camera)) },
         text = {
             Column {
-                Text(stringResource(R.string.camera_slot))
-                Row(Modifier.horizontalScroll(rememberScrollState()).padding(vertical = 8.dp)) {
-                    for (s in 1..7) {
-                        FilterChip(
-                            selected = slot == s,
-                            onClick = { if (!busy) slot = s },
-                            label = { Text("C$s") },
-                            modifier = Modifier.padding(end = 4.dp),
-                        )
+                if (!done) {
+                    Text(stringResource(R.string.camera_slot))
+                    Row(Modifier.horizontalScroll(rememberScrollState()).padding(vertical = 8.dp)) {
+                        for (s in 1..7) {
+                            FilterChip(
+                                selected = slot == s,
+                                onClick = { if (!busy) slot = s },
+                                label = { Text("C$s") },
+                                modifier = Modifier.padding(end = 4.dp),
+                            )
+                        }
                     }
                 }
                 status?.let {
@@ -99,28 +98,34 @@ fun SendToCameraDialog(recipe: Recipe, repo: RecipeRepository, onDismiss: () -> 
             }
         },
         confirmButton = {
-            TextButton(
-                enabled = !busy,
-                onClick = {
-                    // Occupied slot → confirm (and offer a backup) before writing
-                    busy = true
-                    status = context.getString(R.string.camera_reading)
-                    scope.launch {
-                        val existing = readSlotName(context, slot)
-                        if (existing == null) {
-                            doSend(false)
-                        } else {
-                            busy = false
-                            status = null
-                            askOverwrite = existing
+            if (done) {
+                TextButton(onClick = onDismiss) { Text(stringResource(R.string.ok)) }
+            } else {
+                TextButton(
+                    enabled = !busy,
+                    onClick = {
+                        // Occupied slot → confirm (and offer a backup) before writing
+                        busy = true
+                        status = context.getString(R.string.camera_reading)
+                        scope.launch {
+                            val existing = readSlotName(context, slot)
+                            if (existing == null) {
+                                doSend(false)
+                            } else {
+                                busy = false
+                                status = null
+                                askOverwrite = existing
+                            }
                         }
-                    }
-                },
-            ) { Text(stringResource(R.string.send)) }
+                    },
+                ) { Text(stringResource(R.string.send)) }
+            }
         },
         dismissButton = {
-            TextButton(enabled = !busy, onClick = onDismiss) {
-                Text(stringResource(R.string.cancel))
+            if (!done) {
+                TextButton(enabled = !busy, onClick = onDismiss) {
+                    Text(stringResource(R.string.cancel))
+                }
             }
         },
     )
@@ -267,8 +272,8 @@ internal suspend fun writeRecipeToSlot(
     slot: Int,
     repo: RecipeRepository?,
 ): String? {
-    val (ok, message) = sendRecipe(context, recipe, slot, repo)
-    return if (ok) null else message
+    val result = sendRecipe(context, recipe, slot, repo)
+    return if (result.clean) null else result.message
 }
 
 /** Find the camera, get USB permission, open a PTP session. Throws with a user-facing message. */
@@ -288,24 +293,26 @@ internal suspend fun connectFujiCamera(context: Context): FujiCamera {
     }
 }
 
+/** How a send ended: [written] = the recipe is on the camera; [clean] = and nothing to add. */
+private class SendResult(val written: Boolean, val clean: Boolean, val message: String)
+
 /**
- * Full send flow. Returns (cleanSuccess, message) — warnings keep the dialog open.
- * When [backupRepo] is given, the slot's current content is read and saved to the
- * library before it gets overwritten.
+ * Full send flow. When [backupRepo] is given, the slot's current content is
+ * read and saved to the library before it gets overwritten.
  */
 private suspend fun sendRecipe(
     context: Context,
     recipe: Recipe,
     slot: Int,
     backupRepo: RecipeRepository?,
-): Pair<Boolean, String> {
+): SendResult {
     DebugLog.log("send \"${recipe.name}\" → C$slot (backup=${backupRepo != null})")
     return runCatching {
         val camera = connectFujiCamera(context)
         withContext(Dispatchers.IO) {
             try {
                 if (0xD18C !in camera.supportedProperties()) {
-                    return@withContext false to context.getString(R.string.camera_no_presets)
+                    return@withContext SendResult(false, false, context.getString(R.string.camera_no_presets))
                 }
                 val notes = mutableListOf<String>()
 
@@ -319,11 +326,15 @@ private suspend fun sendRecipe(
                     notes += context.getString(R.string.camera_wb_custom_warning)
                 }
                 when {
-                    !result.ok -> false to context.getString(R.string.camera_failed, result.warnings.joinToString())
+                    !result.ok ->
+                        SendResult(false, false, context.getString(R.string.camera_failed, result.warnings.joinToString()))
                     result.warnings.isEmpty() && notes.isEmpty() ->
-                        true to context.getString(R.string.camera_done, slot)
-                    else -> false to (context.getString(R.string.camera_done, slot) + "\n" +
-                        (notes + result.warnings).joinToString("\n"))
+                        SendResult(true, true, context.getString(R.string.camera_done, slot))
+                    else -> SendResult(
+                        true, false,
+                        context.getString(R.string.camera_done, slot) + "\n" +
+                            (notes + result.warnings).joinToString("\n"),
+                    )
                 }
             } finally {
                 camera.close()
@@ -331,7 +342,7 @@ private suspend fun sendRecipe(
         }
     }.getOrElse {
         DebugLog.log("send failed: ${it.message ?: it.javaClass.simpleName}")
-        false to context.getString(R.string.camera_failed, it.message ?: it.javaClass.simpleName)
+        SendResult(false, false, context.getString(R.string.camera_failed, it.message ?: it.javaClass.simpleName))
     }
 }
 
