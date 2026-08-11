@@ -4,9 +4,11 @@ import android.graphics.Bitmap
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -26,6 +28,7 @@ import com.beudbeud.fuji.R
 import com.beudbeud.fuji.data.CubeLut
 import com.beudbeud.fuji.data.DebugLog
 import com.beudbeud.fuji.data.RafFile
+import com.beudbeud.fuji.data.SyntheticRaf
 import com.beudbeud.fuji.data.ptp.FujiProp
 import com.beudbeud.fuji.data.ptp.patchProfile
 import com.beudbeud.fuji.model.DynamicRange
@@ -35,8 +38,12 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-/** Long edge the two renders are decoded at — plenty of samples, sane memory. */
-private const val SAMPLE_DIM = 1024
+/**
+ * Long edge the two renders are decoded at. 2048 makes the decoder halve the
+ * 6240px render instead of quartering it, so a 24px sensor patch still lands on
+ * a 12px block and survives with a clean middle.
+ */
+private const val SAMPLE_DIM = 2048
 
 /**
  * Exports the recipe as a .cube 3D LUT, measured from the camera itself.
@@ -54,6 +61,7 @@ fun LutExportDialog(recipe: Recipe, onDismiss: () -> Unit) {
     var busy by remember { mutableStateOf(false) }
     var cube by remember { mutableStateOf<String?>(null) }
     var coverage by remember { mutableStateOf(0f) }
+    var synthetic by remember { mutableStateOf(false) }
 
     val saver = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/octet-stream")
@@ -98,6 +106,16 @@ fun LutExportDialog(recipe: Recipe, onDismiss: () -> Unit) {
                             )
                         }
 
+                        // The donor only lends its container: the sensor data is
+                        // replaced by a chart that sweeps the whole cube, so the
+                        // measurement stops depending on what was photographed.
+                        if (synthetic) {
+                            status = context.getString(R.string.lut_painting_chart)
+                            if (!SyntheticRaf.chart(raf)) {
+                                throw java.io.IOException(context.getString(R.string.raf_compressed))
+                            }
+                        }
+
                         // Provia with every adjustment at rest — the "before" a LUT
                         // is meant to be applied on top of.
                         val neutral = Recipe(
@@ -138,6 +156,16 @@ fun LutExportDialog(recipe: Recipe, onDismiss: () -> Unit) {
                 status?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
                 if (!busy && cube == null && status == null) {
                     Text(stringResource(R.string.lut_hint), style = MaterialTheme.typography.bodySmall)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(top = 8.dp),
+                    ) {
+                        Checkbox(checked = synthetic, onCheckedChange = { synthetic = it })
+                        Text(
+                            stringResource(R.string.lut_synthetic),
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
                 }
                 if (cube != null) {
                     Text(

@@ -142,6 +142,9 @@
     <string name="raf_wb_note">La balance des blancs est celle de la prise de vue : le boîtier interdit de la changer à la conversion. Les décalages R/B, eux, sont appliqués.</string>
     <string name="lut_export">Exporter en LUT (.cube)</string>
     <string name="lut_hint">Choisis un RAF pris avec ce boîtier. Il est développé deux fois — neutre, puis avec la recette — et la différence devient la LUT.</string>
+    <string name="lut_synthetic">Remplacer la photo par une mire (couverture bien plus large)</string>
+    <string name="lut_painting_chart">Écriture de la mire dans le RAF…</string>
+    <string name="raf_compressed">Ce RAF est compressé. Règle le boîtier sur RAW non compressé et prends une photo qui servira de porteur pour la mire.</string>
     <string name="lut_rendering_base">Développement du rendu neutre…</string>
     <string name="lut_rendering_recipe">Développement avec la recette…</string>
     <string name="lut_building">Construction de la LUT…</string>

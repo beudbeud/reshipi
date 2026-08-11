@@ -143,6 +143,9 @@
     <string name="raf_wb_note">White balance comes from the shot: the camera does not allow changing it during conversion. The R/B shifts are applied.</string>
     <string name="lut_export">Export as LUT (.cube)</string>
     <string name="lut_hint">Pick a RAF shot on this camera. It is developed twice — neutral, then with the recipe — and the difference becomes the LUT.</string>
+    <string name="lut_synthetic">Replace the photo with a colour chart (much wider coverage)</string>
+    <string name="lut_painting_chart">Painting the chart into the RAF…</string>
+    <string name="raf_compressed">This RAF is compressed. Set the camera to uncompressed RAW and shoot one frame to use as the chart carrier.</string>
     <string name="lut_rendering_base">Developing the neutral render…</string>
     <string name="lut_rendering_recipe">Developing with the recipe…</string>
     <string name="lut_building">Building the LUT…</string>
