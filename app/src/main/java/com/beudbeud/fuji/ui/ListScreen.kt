@@ -98,6 +98,7 @@ fun ListScreen(
     var simFilter by remember { mutableStateOf<FilmSimulation?>(null) }
     var cameraFilter by remember { mutableStateOf<String?>(null) }
     var menuOpen by remember { mutableStateOf(false) }
+    var addOpen by remember { mutableStateOf(false) }
     var showLogs by remember { mutableStateOf(false) }
     var showTextImport by remember { mutableStateOf(false) }
     var showCameraImport by remember { mutableStateOf(false) }
@@ -342,23 +343,6 @@ fun ListScreen(
                         }
                         DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                             DropdownMenuItem(
-                                text = { Text(stringResource(R.string.new_from_photo)) },
-                                onClick = {
-                                    menuOpen = false
-                                    photoImportLauncher.launch(
-                                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                                    )
-                                },
-                            )
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.import_text)) },
-                                onClick = { menuOpen = false; showTextImport = true },
-                            )
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.import_from_camera)) },
-                                onClick = { menuOpen = false; showCameraImport = true },
-                            )
-                            DropdownMenuItem(
                                 text = { Text(stringResource(R.string.import_json)) },
                                 onClick = {
                                     menuOpen = false
@@ -388,8 +372,35 @@ fun ListScreen(
             )
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = onAdd) {
-                Icon(Icons.Default.Add, stringResource(R.string.new_recipe))
+            // Every way to create a recipe hangs off the "+", so the overflow menu
+            // is left to the library-wide actions (backup, logs).
+            Box {
+                FloatingActionButton(onClick = { addOpen = true }) {
+                    Icon(Icons.Default.Add, stringResource(R.string.new_recipe))
+                }
+                DropdownMenu(expanded = addOpen, onDismissRequest = { addOpen = false }) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.new_from_scratch)) },
+                        onClick = { addOpen = false; onAdd() },
+                    )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.new_from_image)) },
+                        onClick = {
+                            addOpen = false
+                            photoImportLauncher.launch(
+                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                            )
+                        },
+                    )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.new_from_text)) },
+                        onClick = { addOpen = false; showTextImport = true },
+                    )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.new_from_camera)) },
+                        onClick = { addOpen = false; showCameraImport = true },
+                    )
+                }
             }
         },
         snackbarHost = { SnackbarHost(snackbar) },

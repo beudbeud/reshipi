@@ -3,7 +3,10 @@
     <string name="app_name">Reshipi</string>
 
     <string name="new_recipe">Nouvelle recette</string>
-    <string name="new_from_photo">Nouvelle recette depuis une image</string>
+    <string name="new_from_scratch">Partir de zéro</string>
+    <string name="new_from_image">Depuis une image</string>
+    <string name="new_from_text">Depuis du texte</string>
+    <string name="new_from_camera">Depuis le boîtier</string>
     <string name="import_text">Importer depuis du texte</string>
     <string name="paste_recipe">Colle une recette (un réglage par ligne ou format FujiStyle)</string>
     <string name="create">Créer</string>

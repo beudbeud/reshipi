@@ -3,7 +3,11 @@
     <string name="app_name">Reshipi</string>
 
     <string name="new_recipe">New recipe</string>
-    <string name="new_from_photo">New recipe from an image</string>
+    <!-- Shown under the "+" button, where "new recipe" is already implied -->
+    <string name="new_from_scratch">From scratch</string>
+    <string name="new_from_image">From an image</string>
+    <string name="new_from_text">From text</string>
+    <string name="new_from_camera">From the camera</string>
     <string name="import_text">Import from text</string>
     <string name="paste_recipe">Paste a recipe (one setting per line or FujiStyle format)</string>
     <string name="create">Create</string>
