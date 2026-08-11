@@ -1,5 +1,6 @@
 package com.beudbeud.fuji
 
+import com.beudbeud.fuji.data.DonorRaf
 import com.beudbeud.fuji.data.SyntheticRaf
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -94,6 +95,23 @@ class SyntheticRafTest {
         // ...and it repeats every 6 sites, so the patch really is one flat colour
         assertEquals(16383, raf.site(6, 24 + 8))
         assertEquals(16383, raf.site(12, 24 + 14))
+    }
+
+    @Test
+    fun aStoredContainerRebuildsIntoAUsableRaf() {
+        // What DonorRaf keeps: the file up to the first photosite, nothing more
+        val original = donor()
+        val stored = original.copyOfRange(0, SyntheticRaf.layout(original)!!.pixels)
+        assertTrue("the sensor data must not be stored", stored.size < original.size)
+
+        val rebuilt = DonorRaf.padded(stored)
+        assertEquals(original.size, rebuilt.size)
+        val layout = SyntheticRaf.layout(rebuilt)!!
+        assertEquals(width, layout.width)
+        assertEquals(pixelsAt, layout.pixels)
+        // ...and it still takes a chart, which is the whole point of keeping it
+        assertTrue(SyntheticRaf.chart(rebuilt, patchPx = 24, steps = 2))
+        assertEquals(16383, rebuilt.site(0, 24 + 2))
     }
 
     @Test

@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import com.beudbeud.fuji.R
 import com.beudbeud.fuji.data.CubeLut
 import com.beudbeud.fuji.data.DebugLog
+import com.beudbeud.fuji.data.DonorRaf
 import com.beudbeud.fuji.data.RafFile
 import com.beudbeud.fuji.data.SyntheticRaf
 import com.beudbeud.fuji.data.ptp.FujiProp
@@ -62,6 +63,7 @@ fun LutExportDialog(recipe: Recipe, onDismiss: () -> Unit) {
     var cube by remember { mutableStateOf<String?>(null) }
     var coverage by remember { mutableStateOf(0f) }
     var synthetic by remember { mutableStateOf(false) }
+    var donorReady by remember { mutableStateOf(DonorRaf.exists(context)) }
 
     val saver = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/octet-stream")
@@ -75,17 +77,13 @@ fun LutExportDialog(recipe: Recipe, onDismiss: () -> Unit) {
         }
     }
 
-    val rafPicker = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenDocument()
-    ) { uri ->
-        if (uri == null) return@rememberLauncherForActivityResult
+    // Either a file the user just picked, or the container kept from last time
+    val export = { source: suspend () -> ByteArray ->
         busy = true
         cube = null
         scope.launch {
             runCatching {
-                val raf = withContext(Dispatchers.IO) {
-                    context.contentResolver.openInputStream(uri)!!.use { it.readBytes() }
-                }
+                val raf = withContext(Dispatchers.IO) { source() }
                 val camera = connectFujiCamera(context)
                 withContext(Dispatchers.IO) {
                     try {
@@ -115,6 +113,9 @@ fun LutExportDialog(recipe: Recipe, onDismiss: () -> Unit) {
                                 throw java.io.IOException(context.getString(R.string.raf_compressed))
                             }
                         }
+                        // Keep the container so the next chart export needs no file
+                        DonorRaf.save(context, raf)
+                        donorReady = true
 
                         // Provia with every adjustment at rest — the "before" a LUT
                         // is meant to be applied on top of.
@@ -145,6 +146,15 @@ fun LutExportDialog(recipe: Recipe, onDismiss: () -> Unit) {
             }
             busy = false
         }
+        Unit
+    }
+
+    val rafPicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            export { context.contentResolver.openInputStream(uri)!!.use { it.readBytes() } }
+        }
     }
 
     AlertDialog(
@@ -155,7 +165,16 @@ fun LutExportDialog(recipe: Recipe, onDismiss: () -> Unit) {
                 if (busy) CircularProgressIndicator(Modifier.padding(8.dp))
                 status?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
                 if (!busy && cube == null && status == null) {
-                    Text(stringResource(R.string.lut_hint), style = MaterialTheme.typography.bodySmall)
+                    Text(
+                        stringResource(
+                            when {
+                                !synthetic -> R.string.lut_hint
+                                donorReady -> R.string.lut_hint_chart_ready
+                                else -> R.string.lut_hint_chart_needs_donor
+                            }
+                        ),
+                        style = MaterialTheme.typography.bodySmall,
+                    )
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.padding(top = 8.dp),
@@ -183,8 +202,17 @@ fun LutExportDialog(recipe: Recipe, onDismiss: () -> Unit) {
         },
         confirmButton = {
             if (cube == null) {
-                Button(enabled = !busy, onClick = { rafPicker.launch(arrayOf("*/*")) }) {
-                    Text(stringResource(R.string.raf_choose))
+                // A chart needs no particular photo, so once any RAF has been
+                // seen the button just runs — no picker, nothing to choose.
+                val ready = synthetic && donorReady
+                Button(
+                    enabled = !busy,
+                    onClick = {
+                        if (ready) export { DonorRaf.load(context) ?: error("donor lost") }
+                        else rafPicker.launch(arrayOf("*/*"))
+                    },
+                ) {
+                    Text(stringResource(if (ready) R.string.lut_build_now else R.string.raf_choose))
                 }
             } else {
                 Button(onClick = { saver.launch(sanitize(recipe.name) + ".cube") }) {
