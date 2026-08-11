@@ -23,8 +23,8 @@ android {
         applicationId = "com.beudbeud.fuji"
         minSdk = 26
         targetSdk = 35
-        versionCode = 55
-        versionName = "1.10.1"
+        versionCode = 56
+        versionName = "1.10.2"
     }
 
     signingConfigs {

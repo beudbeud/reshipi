@@ -377,6 +377,46 @@ class FujiStyleCardTest {
     }
 
     @Test
+    fun parsesCondensedToneCurveAndMonochromaticColorLine() {
+        // "H -2, S +3" without colons, "MONOCHROMATIC COLOR: N/A" before the
+        // real Color line, and "D RANGE PRIORITY" spelled out
+        val r = FujiStyleCard.parse(
+            """
+            FILM SIMULATION: PRO Neg. Std
+            MONOCHROMATIC COLOR: N/A
+            GRAIN EFFECT: STRONG, LARGE
+            COLOR CHROME EFFECT: STRONG
+            COLOR CHROME FX BLUE: WEAK
+            SMOOTH SKIN EFFECT: OFF
+            WHITE BALANCE: 5900K/ R +2, B -3
+            DYNAMIC RANGE: DR100
+            D RANGE PRIORITY: OFF
+            TONE CURVE: H -2, S +3
+            COLOR: +4
+            SHARPNESS: -2
+            HIGH ISO NR: -4
+            CLARITY: -2
+            """.trimIndent()
+        )!!
+        assertEquals(FilmSimulation.PRO_NEG_STD, r.filmSimulation)
+        assertEquals(Strength.STRONG, r.grainEffect)
+        assertEquals(GrainSize.LARGE, r.grainSize)
+        assertEquals(Strength.STRONG, r.colorChromeEffect)
+        assertEquals(Strength.WEAK, r.colorChromeFxBlue)
+        assertEquals(WhiteBalance.KELVIN, r.whiteBalance)
+        assertEquals(5900, r.kelvin)
+        assertEquals(2, r.wbShiftRed)
+        assertEquals(-3, r.wbShiftBlue)
+        assertEquals(DynamicRange.DR100, r.dynamicRange)
+        assertEquals(-2.0, r.highlight, 0.0)
+        assertEquals(3.0, r.shadow, 0.0)
+        assertEquals(4, r.color)
+        assertEquals(-2, r.sharpness)
+        assertEquals(-4, r.noiseReduction)
+        assertEquals(-2, r.clarity)
+    }
+
+    @Test
     fun rejectsTextWithoutFilmSimulation() {
         assertNull(FujiStyleCard.parse("random text with no recipe"))
         assertNull(FujiStyleCard.parse("Film Simulation: SOMETHING UNKNOWN | Red: 1"))

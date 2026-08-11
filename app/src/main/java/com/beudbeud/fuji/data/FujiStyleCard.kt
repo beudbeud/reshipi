@@ -133,12 +133,13 @@ object FujiStyleCard {
                 ?: Regex("\\b${color.first()}\\s*:?\\s*([+-]?\\d+)").find("$shiftRaw $wbRaw")
                     ?.groupValues?.get(1)?.toIntOrNull()
 
-        // "Tone Curve: Highlights -1, Shadows 0", or abbreviated "H:-2, S:-2"
+        // "Tone Curve: Highlights -1, Shadows 0", abbreviated "H:-2, S:-2" or
+        // "H -2, S +3" — the colon is optional, the value is already isolated
         val toneCurve = field("Tone\\s+Curve") ?: ""
         fun curve(part: String): Double? =
             Regex("$part\\w*\\s*:?\\s*([+-]?\\d+(\\.\\d+)?)", RegexOption.IGNORE_CASE)
                 .find(toneCurve)?.groupValues?.get(1)?.toDoubleOrNull()
-                ?: Regex("\\b${part.first()}\\s*:\\s*([+-]?\\d+(\\.\\d+)?)", RegexOption.IGNORE_CASE)
+                ?: Regex("\\b${part.first()}\\s*:?\\s*([+-]?\\d+(\\.\\d+)?)", RegexOption.IGNORE_CASE)
                     .find(toneCurve)?.groupValues?.get(1)?.toDoubleOrNull()
         val whiteBalance = when {
             kelvinMatch != null || "KELVIN" in wbRaw -> WhiteBalance.KELVIN
@@ -156,6 +157,9 @@ object FujiStyleCard {
 
         // "Dynamic Range", or the abbreviated "DR:" (never "DR Priority")
         val drRaw = field("Dynamic\\s+Range") ?: field("\\bDR(?!\\s*Priority)") ?: ""
+
+        // "DR Priority", "D-Range Priority", or spelled out "D Range Priority"
+        val prioRaw = field("D[-\\s]?R(?:ange)?\\s*Priority")
 
         // Color Chrome keys, resolved once: some sites spell out "Effect" and use
         // a bare "FX" for the blue variant, others use only one of the two.
@@ -179,17 +183,17 @@ object FujiStyleCard {
             wbShiftRed = (num("Red")?.roundToInt() ?: wbShift("RED") ?: 0).coerceIn(-9, 9),
             wbShiftBlue = (num("Blue")?.roundToInt() ?: wbShift("BLUE") ?: 0).coerceIn(-9, 9),
             dynamicRange = dynamicRange,
-            dRangePriority = strength(field("DR\\s+Priority")).let {
-                when (it) {
-                    Strength.WEAK -> DRangePriority.WEAK
-                    Strength.STRONG -> DRangePriority.STRONG
-                    else -> if ((field("DR\\s+Priority") ?: "").contains("auto", true)) DRangePriority.AUTO
-                    else DRangePriority.OFF
-                }
+            dRangePriority = when (strength(prioRaw)) {
+                Strength.WEAK -> DRangePriority.WEAK
+                Strength.STRONG -> DRangePriority.STRONG
+                else -> if ((prioRaw ?: "").contains("auto", true)) DRangePriority.AUTO
+                else DRangePriority.OFF
             },
             highlight = (num("Highlights?") ?: curve("Highlight") ?: 0.0).halfSteps().coerceIn(-2.0, 4.0),
             shadow = (num("Shadows?") ?: curve("Shadow") ?: 0.0).halfSteps().coerceIn(-2.0, 4.0),
-            color = (num("Colou?r")?.roundToInt() ?: 0).coerceIn(-4, 4),
+            // The lookbehind keeps "Monochromatic Color: N/A" from stealing the
+            // Color field on pages that list both.
+            color = (num("(?<![A-Za-z] )Colou?r")?.roundToInt() ?: 0).coerceIn(-4, 4),
             sharpness = ((num("Sharpness") ?: num("Sharpening"))?.roundToInt() ?: 0).coerceIn(-4, 4),
             // "High ISO NR", "Noise Reduction", or the abbreviated "ISO N.R."
             noiseReduction = ((num("High\\s+ISO\\s+NR") ?: num("Noise\\s+Reduction")
