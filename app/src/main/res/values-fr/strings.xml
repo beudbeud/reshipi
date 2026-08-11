@@ -85,6 +85,8 @@
     <string name="slot_overwrite_text">C%1$d contient déjà « %2$s ».</string>
     <string name="overwrite">Écraser</string>
     <string name="backup_slot_saved">Slot C%1$d sauvegardé sous « %2$s »</string>
+    <string name="backup_slot_exists">C%1$d non sauvegardé : mêmes réglages déjà dans ta bibliothèque sous « %2$s »</string>
+    <string name="backup_note">Sauvegarde du slot C%1$d, le %2$s</string>
     <string name="camera_slots">Mon boîtier (C1–C7)</string>
     <string name="slot_empty">Vide</string>
     <string name="write_here">Écrire une recette ici</string>

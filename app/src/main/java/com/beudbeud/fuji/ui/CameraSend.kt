@@ -246,10 +246,23 @@ private suspend fun sendRecipe(
                     if (existing != null && existing.name.isNotBlank() && existing.props.isNotEmpty()) {
                         val saved = recipeFromPresetProps(
                             existing.name, existing.props, camera.modelName(),
-                        ).let { it.copy(tags = it.tags + "backup") }
-                        if (backupRepo.addImported(listOf(saved)).added > 0) {
-                            DebugLog.log("backed up C$slot as \"${saved.name}\"")
-                            notes += context.getString(R.string.backup_slot_saved, slot, saved.name)
+                        )
+                        // Identical settings already in the library: a backup would
+                        // just be a duplicate — say so instead of writing one.
+                        val already = backupRepo.duplicateOf(saved)
+                        if (already != null) {
+                            DebugLog.log("no backup for C$slot: same settings as \"${already.name}\"")
+                            notes += context.getString(R.string.backup_slot_exists, slot, already.name)
+                        } else {
+                            val date = android.text.format.DateFormat.getDateFormat(context)
+                                .format(java.util.Date())
+                            val toSave = saved.copy(
+                                tags = saved.tags + "backup",
+                                notes = context.getString(R.string.backup_note, slot, date),
+                            )
+                            backupRepo.addImported(listOf(toSave))
+                            DebugLog.log("backed up C$slot as \"${toSave.name}\"")
+                            notes += context.getString(R.string.backup_slot_saved, slot, toSave.name)
                         }
                     }
                 }
