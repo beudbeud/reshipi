@@ -88,6 +88,7 @@
     <string name="export_failed">Export failed</string>
     <string name="import_done">%1$d recipes imported</string>
     <string name="import_failed">Import failed: invalid file</string>
+    <string name="import_failed_reason">Import failed: %1$s</string>
 
     <string name="raf_preview">Preview on camera (RAF)</string>
     <string name="raf_choose">Choose a RAF file</string>

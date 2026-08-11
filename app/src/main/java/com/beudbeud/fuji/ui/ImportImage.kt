@@ -69,3 +69,14 @@ internal fun importMessage(context: Context, r: RecipeRepository.ImportResult): 
     )
     else -> context.getString(R.string.import_done_dupes, r.added, r.duplicates)
 }
+
+/**
+ * "Import failed: Fields [recipes] are required" rather than a bare "invalid file".
+ * The parser's own wording is the only thing that says *which* part of the file is
+ * wrong; it stays in English on purpose, it is diagnostic text meant to be reported.
+ */
+internal fun importFailure(context: Context, t: Throwable): String {
+    val reason = t.message?.lineSequence()?.firstOrNull()?.trim()?.take(140)
+    return if (reason.isNullOrEmpty()) context.getString(R.string.import_failed)
+    else context.getString(R.string.import_failed_reason, reason)
+}

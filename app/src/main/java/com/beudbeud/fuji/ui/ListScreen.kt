@@ -48,6 +48,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SuggestionChip
@@ -132,10 +133,11 @@ fun ListScreen(
             }
             scope.launch {
                 snackbar.showSnackbar(
-                    result.fold(
-                        onSuccess = { context.getString(R.string.import_done, it) },
-                        onFailure = { context.getString(R.string.import_failed) },
-                    )
+                    message = result.fold(
+                        onSuccess = { importMessage(context, it) },
+                        onFailure = { importFailure(context, it) },
+                    ),
+                    duration = if (result.isSuccess) SnackbarDuration.Short else SnackbarDuration.Long,
                 )
             }
         }
@@ -161,11 +163,14 @@ fun ListScreen(
             .build()
         GmsBarcodeScanning.getClient(context, options).startScan()
             .addOnSuccessListener { barcode ->
-                val n = runCatching { repo.importJson(barcode.rawValue ?: "") }.getOrNull()
+                val result = runCatching { repo.importJson(barcode.rawValue ?: "") }
                 scope.launch {
                     snackbar.showSnackbar(
-                        if (n != null) context.getString(R.string.import_done, n)
-                        else context.getString(R.string.import_failed)
+                        message = result.fold(
+                            onSuccess = { importMessage(context, it) },
+                            onFailure = { importFailure(context, it) },
+                        ),
+                        duration = if (result.isSuccess) SnackbarDuration.Short else SnackbarDuration.Long,
                     )
                 }
             }

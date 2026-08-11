@@ -88,6 +88,7 @@
     <string name="export_failed">Échec de l\'export</string>
     <string name="import_done">%1$d recettes importées</string>
     <string name="import_failed">Échec de l\'import : fichier invalide</string>
+    <string name="import_failed_reason">Échec de l\'import : %1$s</string>
 
     <string name="raf_preview">Aperçu sur le boîtier (RAF)</string>
     <string name="raf_choose">Choisir un fichier RAF</string>

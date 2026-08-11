@@ -77,15 +77,15 @@ class RecipeRepository(private val context: Context) {
 
     fun exportJson(): String = json.encodeToString(RecipeExport(recipes = _recipes.value))
 
-    /** Merges by id, returns the number of recipes added or updated. */
-    fun importJson(text: String): Int {
+    /** Merges by id, returns what was added and what was skipped. */
+    fun importJson(text: String): ImportResult {
         val incoming = json.decodeFromString<RecipeExport>(text).recipes
             // photo filenames from another device are meaningless — keep only local files
             .map { r -> r.copy(photos = r.photos.filter { photoFile(it).exists() }) }
         return merge(incoming)
     }
 
-    private fun merge(incoming: List<Recipe>): Int {
+    private fun merge(incoming: List<Recipe>): ImportResult {
         val before = _recipes.value.associateBy { it.id }
         // Same settings under a different id: someone else's copy of a recipe we
         // already have. Merging by id alone would shelve it as a second entry.
@@ -93,7 +93,10 @@ class RecipeRepository(private val context: Context) {
         val fresh = incoming.filter { mine[it.settingsKey]?.id?.equals(it.id) != false }
         val merged = mergeRecipes(_recipes.value, fresh)
         persist(merged)
-        return merged.count { before[it.id] != it }
+        val added = merged.count { before[it.id] != it }
+        // Everything else was already here, identical or newer — worth saying so,
+        // otherwise a valid file that changes nothing reads as a silent failure.
+        return ImportResult(added = added, duplicates = incoming.size - added)
     }
 
     /** The recipe already holding these settings, if any — ignoring [recipe] itself. */
@@ -139,7 +142,7 @@ class RecipeRepository(private val context: Context) {
      * Restores a ZIP backup: photos are written to app storage first so the
      * recipes that reference them keep their illustrations.
      */
-    fun importZip(input: InputStream): Int {
+    fun importZip(input: InputStream): ImportResult {
         var recipesJson: String? = null
         ZipInputStream(input.buffered()).use { zip ->
             while (true) {
