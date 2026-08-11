@@ -144,8 +144,9 @@
     <string name="lut_hint">Choisis un RAF pris avec ce boîtier. Il est développé deux fois — neutre, puis avec la recette — et la différence devient la LUT.</string>
     <string name="lut_synthetic">Remplacer la photo par une mire (couverture bien plus large)</string>
     <string name="lut_build_now">Créer la LUT</string>
-    <string name="lut_hint_chart_ready">La mire est écrite dans l\'enveloppe RAF mémorisée — rien à choisir.</string>
-    <string name="lut_hint_chart_needs_donor">Choisis une fois un RAF non compressé de ce boîtier. Seule son enveloppe est conservée, les mires suivantes n\'auront plus besoin de fichier.</string>
+    <string name="raf_no_donor">Aucune enveloppe RAF disponible — choisis un RAF non compressé de ce boîtier.</string>
+    <string name="lut_hint_chart_ready">La mire est écrite dans une enveloppe RAF que l\'app possède déjà — rien à choisir.</string>
+    <string name="lut_hint_chart_needs_donor">Ce boîtier a besoin d\'un RAF non compressé qui lui appartienne pour porter la mire. Choisis-en un, une seule fois — seule son enveloppe est conservée.</string>
     <string name="lut_painting_chart">Écriture de la mire dans le RAF…</string>
     <string name="raf_compressed">Ce RAF est compressé. Règle le boîtier sur RAW non compressé et prends une photo qui servira de porteur pour la mire.</string>
     <string name="lut_rendering_base">Développement du rendu neutre…</string>

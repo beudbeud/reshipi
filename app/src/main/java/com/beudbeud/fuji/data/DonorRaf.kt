@@ -1,21 +1,33 @@
 package com.beudbeud.fuji.data
 
 import android.content.Context
+import com.beudbeud.fuji.R
 import java.io.File
+import java.util.zip.GZIPInputStream
 
 /**
- * Keeps one RAF around to carry synthetic charts, so a chart-based LUT only
- * ever needs a file picked once.
+ * Supplies the RAF container that synthetic charts are painted into, so a
+ * chart-based LUT needs no file from the user.
  *
- * The sensor data is about to be overwritten anyway, so it is not stored: only
- * the part of the file up to the first photosite is kept, roughly 5 MB instead
- * of 56. Rebuilding pads the rest with zeroes, which [SyntheticRaf.chart] then
- * paints over completely.
+ * The sensor data is about to be overwritten anyway, so it is never stored:
+ * only the part of the file up to the first photosite is kept, about 5 MB of
+ * 56. Rebuilding pads the rest with zeroes, which [SyntheticRaf.chart] then
+ * covers completely.
+ *
+ * Two sources, in order:
+ *  - a container kept from a RAF the user opened, which always matches their body;
+ *  - one bundled in the app for the X-T30 III, carrying no serial number and a
+ *    preview of the chart rather than the photograph it was derived from. It
+ *    compresses to 10 KB because everything in it that mattered was structure.
  */
 object DonorRaf {
-    private fun file(context: Context) = File(context.filesDir, "donor.rafhead")
+    private fun head(context: Context) = File(context.filesDir, "donor.rafhead")
 
-    fun exists(context: Context) = file(context).length() > 0
+    /** Tombstone for the bundled container once a body has refused it. */
+    private fun rejected(context: Context) = File(context.filesDir, "donor.rejected")
+
+    /** Whether a chart export can run without asking for a file. */
+    fun exists(context: Context) = head(context).length() > 0 || !rejected(context).exists()
 
     /**
      * Remembers [raf]'s container, returning whether it could be kept. A
@@ -23,14 +35,27 @@ object DonorRaf {
      */
     fun save(context: Context, raf: ByteArray): Boolean {
         val layout = SyntheticRaf.layout(raf) ?: return false
-        return runCatching { file(context).writeBytes(raf.copyOfRange(0, layout.pixels)) }.isSuccess
+        val ok = runCatching {
+            head(context).writeBytes(raf.copyOfRange(0, layout.pixels))
+        }.isSuccess
+        // A container of their own supersedes any earlier refusal
+        if (ok) rejected(context).delete()
+        return ok
     }
 
-    /** The stored container, resized back to a full RAF, or null if none is kept. */
-    fun load(context: Context): ByteArray? {
-        val head = runCatching { file(context).readBytes() }.getOrNull() ?: return null
-        if (head.size < 0x6C) return null
-        // A head from an older version, or a truncated write: start over
+    /** A full-size RAF ready to be painted, or null when none can be had. */
+    fun load(context: Context): ByteArray? =
+        usable(runCatching { head(context).readBytes() }.getOrNull())
+            ?: if (rejected(context).exists()) null else usable(bundled(context))
+
+    private fun bundled(context: Context): ByteArray? = runCatching {
+        context.resources.openRawResource(R.raw.donor_x_t30_iii).use {
+            GZIPInputStream(it).readBytes()
+        }
+    }.getOrNull()
+
+    private fun usable(head: ByteArray?): ByteArray? {
+        if (head == null || head.size < 0x6C) return null
         val full = runCatching { padded(head) }.getOrNull() ?: return null
         return if (SyntheticRaf.layout(full) != null) full else null
     }
@@ -47,7 +72,12 @@ object DonorRaf {
         return head.copyOf(maxOf(total, head.size))
     }
 
+    /**
+     * Drops the container a body has just refused. A kept one simply goes; when
+     * there was none, the refusal was the bundled X-T30 III container, and that
+     * one has to be remembered or every export would offer it again.
+     */
     fun forget(context: Context) {
-        file(context).delete()
+        if (!head(context).delete()) runCatching { rejected(context).writeBytes(ByteArray(0)) }
     }
 }

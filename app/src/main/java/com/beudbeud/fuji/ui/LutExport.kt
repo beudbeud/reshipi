@@ -218,7 +218,10 @@ fun LutExportDialog(recipe: Recipe, onDismiss: () -> Unit) {
                 Button(
                     enabled = !busy,
                     onClick = {
-                        if (ready) export { DonorRaf.load(context) ?: error("donor lost") }
+                        if (ready) export {
+                            DonorRaf.load(context)
+                                ?: throw java.io.IOException(context.getString(R.string.raf_no_donor))
+                        }
                         else rafPicker.launch(arrayOf("*/*"))
                     },
                 ) {

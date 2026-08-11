@@ -145,8 +145,9 @@
     <string name="lut_hint">Pick a RAF shot on this camera. It is developed twice — neutral, then with the recipe — and the difference becomes the LUT.</string>
     <string name="lut_synthetic">Replace the photo with a colour chart (much wider coverage)</string>
     <string name="lut_build_now">Create the LUT</string>
-    <string name="lut_hint_chart_ready">The chart is painted into the RAF kept from last time — nothing to pick.</string>
-    <string name="lut_hint_chart_needs_donor">Pick any uncompressed RAF from this camera once. Only its container is kept, and later charts need no file at all.</string>
+    <string name="raf_no_donor">No RAF container available — pick an uncompressed RAF from this camera.</string>
+    <string name="lut_hint_chart_ready">The chart is painted into a RAF container the app already has — nothing to pick.</string>
+    <string name="lut_hint_chart_needs_donor">This camera needs one uncompressed RAF of its own to carry the chart. Pick one once — only its container is kept.</string>
     <string name="lut_painting_chart">Painting the chart into the RAF…</string>
     <string name="raf_compressed">This RAF is compressed. Set the camera to uncompressed RAW and shoot one frame to use as the chart carrier.</string>
     <string name="lut_rendering_base">Developing the neutral render…</string>
