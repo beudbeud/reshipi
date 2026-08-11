@@ -85,6 +85,10 @@
     <string name="slot_overwrite_title">Overwrite C%1$d?</string>
     <string name="slot_overwrite_text">C%1$d already contains “%2$s”.</string>
     <string name="overwrite">Overwrite</string>
+    <string name="slot_clear">Clear</string>
+    <string name="slot_clear_title">Clear C%1$d?</string>
+    <string name="slot_clear_text">“%1$s” will be erased from the camera (the slot goes back to a neutral, unnamed state).</string>
+    <string name="slot_cleared">Slot C%1$d cleared</string>
     <string name="backup_slot_saved">Slot C%1$d backed up as “%2$s”</string>
     <string name="backup_slot_exists">C%1$d not backed up: same settings already in your library as “%2$s”</string>
     <string name="backup_note">Backup of slot C%1$d, %2$s</string>
@@ -141,6 +145,9 @@
     <string name="sort_recent">Recent</string>
     <string name="sort_simulation">By film</string>
     <string name="filter_all">All</string>
+    <string name="filter_mono_or_color">B&amp;W / Colour</string>
+    <string name="filter_mono">Black &amp; white</string>
+    <string name="filter_color">Colour</string>
     <string name="raf_unsupported">This camera does not advertise in-camera RAW conversion.</string>
     <string name="raf_not_a_raf">That file is not a RAF.</string>
     <string name="raf_wrong_camera">This RAF was shot on a %1$s. In-camera conversion only accepts files from the connected body (%2$s).</string>

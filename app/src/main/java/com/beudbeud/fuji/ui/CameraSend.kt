@@ -126,9 +126,10 @@ fun SendToCameraDialog(recipe: Recipe, repo: RecipeRepository, onDismiss: () -> 
     )
 
     askOverwrite?.let { existing ->
-        OverwriteSlotDialog(
-            slot = slot,
-            existingName = existing,
+        SlotConfirmDialog(
+            title = stringResource(R.string.slot_overwrite_title, slot),
+            text = stringResource(R.string.slot_overwrite_text, slot, existing),
+            confirmLabel = stringResource(R.string.overwrite),
             onDismiss = { askOverwrite = null },
             onConfirm = { backup ->
                 askOverwrite = null
@@ -138,21 +139,89 @@ fun SendToCameraDialog(recipe: Recipe, repo: RecipeRepository, onDismiss: () -> 
     }
 }
 
-/** "C2 already contains X — overwrite?", with the backup choice where it matters. */
-@Composable
-internal fun OverwriteSlotDialog(
+/**
+ * Read the slot and keep a copy in the library. The returned note says what
+ * happened: backed up under which name, or skipped because an identical recipe
+ * already exists. Null when the slot was empty.
+ */
+private fun backupSlot(
+    context: Context,
+    camera: FujiCamera,
     slot: Int,
-    existingName: String,
+    repo: RecipeRepository,
+): String? {
+    val existing = camera.readPresets(slot..slot).firstOrNull() ?: return null
+    // An empty slot has nothing worth keeping
+    if (existing.name.isBlank() || existing.props.isEmpty()) return null
+    val saved = recipeFromPresetProps(existing.name, existing.props, camera.modelName())
+    // Identical settings already in the library: a backup would just be a
+    // duplicate — say so instead of writing one.
+    val already = repo.duplicateOf(saved)
+    if (already != null) {
+        DebugLog.log("no backup for C$slot: same settings as \"${already.name}\"")
+        return context.getString(R.string.backup_slot_exists, slot, already.name)
+    }
+    val date = android.text.format.DateFormat.getDateFormat(context).format(java.util.Date())
+    val toSave = saved.copy(
+        tags = saved.tags + "backup",
+        notes = context.getString(R.string.backup_note, slot, date),
+    )
+    repo.addImported(listOf(toSave))
+    DebugLog.log("backed up C$slot as \"${toSave.name}\"")
+    return context.getString(R.string.backup_slot_saved, slot, toSave.name)
+}
+
+/**
+ * Empty a slot: blank name, neutral Provia settings. The camera has no delete
+ * operation — C1-C7 always exist — so "cleared" means what the app already
+ * treats as empty: a slot without a name.
+ */
+internal suspend fun clearCameraSlot(
+    context: Context,
+    slot: Int,
+    backupRepo: RecipeRepository?,
+): String? {
+    DebugLog.log("clear C$slot (backup=${backupRepo != null})")
+    return runCatching {
+        val camera = connectFujiCamera(context)
+        withContext(Dispatchers.IO) {
+            try {
+                val notes = mutableListOf<String>()
+                if (backupRepo != null) {
+                    backupSlot(context, camera, slot, backupRepo)?.let { notes += it }
+                }
+                val result = camera.writePreset(slot, "", Recipe().toPresetProps())
+                when {
+                    !result.ok ->
+                        context.getString(R.string.camera_failed, result.warnings.joinToString())
+                    else -> (notes + result.warnings).joinToString("\n").ifBlank { null }
+                }
+            } finally {
+                camera.close()
+            }
+        }
+    }.getOrElse {
+        DebugLog.log("clear failed: ${it.message ?: it.javaClass.simpleName}")
+        context.getString(R.string.camera_failed, it.message ?: it.javaClass.simpleName)
+    }
+}
+
+/** Slot confirmation ("overwrite?", "clear?") with the backup choice where it matters. */
+@Composable
+internal fun SlotConfirmDialog(
+    title: String,
+    text: String,
+    confirmLabel: String,
     onDismiss: () -> Unit,
     onConfirm: (backup: Boolean) -> Unit,
 ) {
     var backup by remember { mutableStateOf(true) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.slot_overwrite_title, slot)) },
+        title = { Text(title) },
         text = {
             Column {
-                Text(stringResource(R.string.slot_overwrite_text, slot, existingName))
+                Text(text)
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.padding(top = 8.dp).clickable { backup = !backup },
@@ -166,7 +235,7 @@ internal fun OverwriteSlotDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = { onConfirm(backup) }) { Text(stringResource(R.string.overwrite)) }
+            TextButton(onClick = { onConfirm(backup) }) { Text(confirmLabel) }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
@@ -241,30 +310,7 @@ private suspend fun sendRecipe(
                 val notes = mutableListOf<String>()
 
                 if (backupRepo != null) {
-                    val existing = camera.readPresets(slot..slot).firstOrNull()
-                    // An empty slot has nothing worth keeping
-                    if (existing != null && existing.name.isNotBlank() && existing.props.isNotEmpty()) {
-                        val saved = recipeFromPresetProps(
-                            existing.name, existing.props, camera.modelName(),
-                        )
-                        // Identical settings already in the library: a backup would
-                        // just be a duplicate — say so instead of writing one.
-                        val already = backupRepo.duplicateOf(saved)
-                        if (already != null) {
-                            DebugLog.log("no backup for C$slot: same settings as \"${already.name}\"")
-                            notes += context.getString(R.string.backup_slot_exists, slot, already.name)
-                        } else {
-                            val date = android.text.format.DateFormat.getDateFormat(context)
-                                .format(java.util.Date())
-                            val toSave = saved.copy(
-                                tags = saved.tags + "backup",
-                                notes = context.getString(R.string.backup_note, slot, date),
-                            )
-                            backupRepo.addImported(listOf(toSave))
-                            DebugLog.log("backed up C$slot as \"${toSave.name}\"")
-                            notes += context.getString(R.string.backup_slot_saved, slot, toSave.name)
-                        }
-                    }
+                    backupSlot(context, camera, slot, backupRepo)?.let { notes += it }
                 }
 
                 val result = camera.writePreset(slot, recipe.name.take(SLOT_NAME_MAX), recipe.toPresetProps())

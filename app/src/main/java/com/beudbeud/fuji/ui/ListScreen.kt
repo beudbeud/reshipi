@@ -73,6 +73,7 @@ import com.beudbeud.fuji.R
 import com.beudbeud.fuji.data.DebugLog
 import com.beudbeud.fuji.data.FujiStyleCard
 import com.beudbeud.fuji.data.RecipeRepository
+import com.beudbeud.fuji.data.ptp.MONO_SIMS
 import com.beudbeud.fuji.model.Recipe
 import com.beudbeud.fuji.model.cameraLabel
 import com.google.mlkit.vision.barcode.common.Barcode
@@ -97,6 +98,8 @@ fun ListScreen(
     var sort by remember { mutableStateOf(SortOrder.NAME) }
     var simFilter by remember { mutableStateOf<FilmSimulation?>(null) }
     var cameraFilter by remember { mutableStateOf<String?>(null) }
+    // null = all, true = black & white recipes, false = colour recipes
+    var monoFilter by remember { mutableStateOf<Boolean?>(null) }
     var menuOpen by remember { mutableStateOf(false) }
     var addOpen by remember { mutableStateOf(false) }
     var showLogs by remember { mutableStateOf(false) }
@@ -182,6 +185,7 @@ fun ListScreen(
         .filter { !favOnly || it.favorite }
         .filter { simFilter == null || it.filmSimulation == simFilter }
         .filter { cameraFilter == null || it.cameraLabel == cameraFilter }
+        .filter { monoFilter == null || (it.filmSimulation in MONO_SIMS) == monoFilter }
         .filter {
             query.isBlank() || it.name.contains(query, ignoreCase = true) ||
                 it.filmSimulation.label.contains(query, ignoreCase = true) ||
@@ -443,6 +447,19 @@ fun ListScreen(
                     selected = simFilter != null,
                     options = simsPresent.map { it.label to it },
                     onPick = { simFilter = it },
+                )
+                MenuChip(
+                    label = when (monoFilter) {
+                        true -> stringResource(R.string.filter_mono)
+                        false -> stringResource(R.string.filter_color)
+                        null -> stringResource(R.string.filter_mono_or_color)
+                    },
+                    selected = monoFilter != null,
+                    options = listOf(
+                        stringResource(R.string.filter_mono) to true,
+                        stringResource(R.string.filter_color) to false,
+                    ),
+                    onPick = { monoFilter = it },
                 )
                 MenuChip(
                     label = cameraFilter ?: stringResource(R.string.camera_model),

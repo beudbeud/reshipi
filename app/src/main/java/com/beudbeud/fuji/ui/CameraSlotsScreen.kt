@@ -85,6 +85,8 @@ fun CameraSlotsScreen(
     var reload by remember { mutableIntStateOf(0) }
     // Recipe picked for an occupied slot, waiting for the overwrite confirmation
     var confirmWrite by remember { mutableStateOf<Pair<Recipe, Int>?>(null) }
+    // Slot waiting for the clear confirmation
+    var clearFor by remember { mutableIntStateOf(0) }
 
     val doWrite = { picked: Recipe, target: Int, backup: Boolean ->
         scope.launch {
@@ -175,6 +177,7 @@ fun CameraSlotsScreen(
                             }
                         },
                         onWrite = { pickForSlot = slot },
+                        onClear = { clearFor = slot },
                         onOpenKnown = { known?.let { onOpenRecipe(it.id) } },
                     )
                 }
@@ -201,13 +204,41 @@ fun CameraSlotsScreen(
     }
 
     confirmWrite?.let { (picked, target) ->
-        OverwriteSlotDialog(
-            slot = target,
-            existingName = slots.firstOrNull { it.first == target }?.second?.name ?: "",
+        SlotConfirmDialog(
+            title = stringResource(R.string.slot_overwrite_title, target),
+            text = stringResource(
+                R.string.slot_overwrite_text, target,
+                slots.firstOrNull { it.first == target }?.second?.name ?: "",
+            ),
+            confirmLabel = stringResource(R.string.overwrite),
             onDismiss = { confirmWrite = null },
             onConfirm = { backup ->
                 confirmWrite = null
                 doWrite(picked, target, backup)
+            },
+        )
+    }
+
+    if (clearFor > 0) {
+        val target = clearFor
+        SlotConfirmDialog(
+            title = stringResource(R.string.slot_clear_title, target),
+            text = stringResource(
+                R.string.slot_clear_text,
+                slots.firstOrNull { it.first == target }?.second?.name ?: "",
+            ),
+            confirmLabel = stringResource(R.string.slot_clear),
+            onDismiss = { clearFor = 0 },
+            onConfirm = { backup ->
+                clearFor = 0
+                scope.launch {
+                    busy = true
+                    status = context.getString(R.string.camera_writing)
+                    status = clearCameraSlot(context, target, repo.takeIf { backup })
+                        ?: context.getString(R.string.slot_cleared, target)
+                    busy = false
+                    reload++
+                }
             },
         )
     }
@@ -221,6 +252,7 @@ private fun SlotCard(
     enabled: Boolean,
     onImport: () -> Unit,
     onWrite: () -> Unit,
+    onClear: () -> Unit,
     onOpenKnown: () -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
@@ -296,6 +328,11 @@ private fun SlotCard(
                 } else if (recipe != null) {
                     TextButton(enabled = enabled, onClick = onImport) {
                         Text(stringResource(R.string.import_from_camera))
+                    }
+                }
+                if (recipe != null) {
+                    TextButton(enabled = enabled, onClick = onClear) {
+                        Text(stringResource(R.string.slot_clear))
                     }
                 }
                 TextButton(enabled = enabled, onClick = onWrite) {

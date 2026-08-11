@@ -84,6 +84,10 @@
     <string name="slot_overwrite_title">Écraser C%1$d ?</string>
     <string name="slot_overwrite_text">C%1$d contient déjà « %2$s ».</string>
     <string name="overwrite">Écraser</string>
+    <string name="slot_clear">Vider</string>
+    <string name="slot_clear_title">Vider C%1$d ?</string>
+    <string name="slot_clear_text">« %1$s » sera effacé du boîtier (le slot repasse à l\'état neutre, sans nom).</string>
+    <string name="slot_cleared">Slot C%1$d vidé</string>
     <string name="backup_slot_saved">Slot C%1$d sauvegardé sous « %2$s »</string>
     <string name="backup_slot_exists">C%1$d non sauvegardé : mêmes réglages déjà dans ta bibliothèque sous « %2$s »</string>
     <string name="backup_note">Sauvegarde du slot C%1$d, le %2$s</string>
@@ -140,6 +144,9 @@
     <string name="sort_recent">Récentes</string>
     <string name="sort_simulation">Par pellicule</string>
     <string name="filter_all">Toutes</string>
+    <string name="filter_mono_or_color">N&amp;B / Couleur</string>
+    <string name="filter_mono">Noir &amp; blanc</string>
+    <string name="filter_color">Couleur</string>
     <string name="raf_unsupported">Ce boîtier ne déclare pas la conversion RAW interne.</string>
     <string name="raf_not_a_raf">Ce fichier n\'est pas un RAF.</string>
     <string name="raf_wrong_camera">Ce RAF vient d\'un %1$s. La conversion interne n\'accepte que les fichiers du boîtier connecté (%2$s).</string>
