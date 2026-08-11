@@ -31,11 +31,39 @@ object FujiStyleCard {
     internal val SIM_KEY = Regex("$SIM_KEY_PAT$SEP", RegexOption.IGNORE_CASE)
 
     /**
+     * French pages label the same settings in French. Rather than doubling every
+     * pattern below, the keys are rewritten to English first. The lookahead keeps
+     * this to key position: a white balance *value* of "Ombre" must stay Shade,
+     * not turn into the Shadows field. Order matters — the longer keys that
+     * contain a shorter one ("Décalage de la balance des blancs") come first.
+     */
+    private val FR_KEYS = listOf(
+        "D[ée]calage\\s+(?:de\\s+)?(?:la\\s+)?balance\\s+des\\s+blancs" to "White Balance Shift",
+        "Priorit[ée]\\s+(?:de\\s+)?(?:la\\s+)?(?:gamme|plage)\\s+dynamique" to "DR Priority",
+        "(?:Gamme|Plage)\\s+dynamique" to "Dynamic Range",
+        "R[ée]duction\\s+du\\s+bruit" to "Noise Reduction",
+        "Compensation\\s+d['’]exposition" to "Exposure Compensation",
+        "Balance\\s+des\\s+blancs" to "White Balance",
+        "Effet\\s+de\\s+grain" to "Grain Effect",
+        "Taille\\s+d[eu]\\s*(?:la\\s+)?grain" to "Grain Size",
+        "Simulation\\s+de\\s+(?:base|film)" to "Film Simulation",
+        "(?:Hautes?\\s+lumi[eè]res?|Tons?\\s+clairs?|Surbrillance)" to "Highlights",
+        "(?:Tons?\\s+sombres?|Ombres?)" to "Shadows",
+        "Couleur" to "Color",
+        "Nettet[ée]" to "Sharpness",
+        "Clart[ée]" to "Clarity",
+    ).map { (fr, en) -> Regex("(?i)\\b$fr(?=$SEP)") to en }
+
+    private fun toEnglishKeys(text: String): String =
+        FR_KEYS.fold(text) { acc, (pattern, english) -> pattern.replace(acc, english) }
+
+    /**
      * Parses every recipe in the text: pages listing several recipes are split
      * at each "Film Simulation" declaration and parsed independently. Recipes
      * without a name get one from the nearest preceding heading when possible.
      */
-    fun parseAll(text: String, tag: String = "fujistyle"): List<Recipe> {
+    fun parseAll(raw: String, tag: String = "fujistyle"): List<Recipe> {
+        val text = toEnglishKeys(raw)
         val starts = SIM_KEY.findAll(text).map { it.range.first }.toList()
         if (starts.size <= 1) return listOfNotNull(parse(text, tag))
         val recipes = mutableListOf<Recipe>()
@@ -69,7 +97,9 @@ object FujiStyleCard {
             ?.trim()?.takeIf { it.isNotBlank() }
     }
 
-    fun parse(text: String, tag: String = "fujistyle"): Recipe? {
+    fun parse(raw: String, tag: String = "fujistyle"): Recipe? {
+        // Idempotent: text already translated by parseAll has no French keys left
+        val text = toEnglishKeys(raw)
         // A key may carry a parenthesized/bracketed qualifier before the
         // separator: "Grain [effect, Size] :", "Tone Curve (Highlights/Shadows):"
         fun field(keyPattern: String): String? =
@@ -86,13 +116,16 @@ object FujiStyleCard {
             .mapNotNull { detectSim(it.groupValues[1]) }
             .lastOrNull() ?: return null
 
-        val wbRaw = (field("White\\s+Balance") ?: "").uppercase()
+        // Shift colours live inside the value ("Décalage : Rouge -3, Bleu +4"),
+        // where the key translation above can't reach them.
+        fun frenchColours(s: String) = s.replace("ROUGE", "RED").replace("BLEU", "BLUE")
+        val wbRaw = frenchColours((field("White\\s+Balance") ?: "").uppercase())
         // "5700K" or the prefix form "K7000"
         val kelvinMatch = (Regex("(\\d{4,5})\\s*K").find(wbRaw)
             ?: Regex("\\bK\\s*(\\d{4,5})").find(wbRaw))?.groupValues?.get(1)?.toIntOrNull()
         // Shifts as their own fields ("Red: -6"), inside the WB value
         // ("+1 Red & +1 Blue"), or in a "White Balance Shift: R +2, B -2" field
-        val shiftRaw = (field("White\\s+Balance\\s+Shift") ?: "").uppercase()
+        val shiftRaw = frenchColours((field("White\\s+Balance\\s+Shift") ?: "").uppercase())
         fun wbShift(color: String): Int? =
             Regex("([+-]?\\d+)\\s*$color").find(wbRaw)?.groupValues?.get(1)?.toIntOrNull()
                 ?: Regex("$color\\s*:?\\s*([+-]?\\d+)").find(wbRaw)?.groupValues?.get(1)?.toIntOrNull()
@@ -109,15 +142,15 @@ object FujiStyleCard {
                     .find(toneCurve)?.groupValues?.get(1)?.toDoubleOrNull()
         val whiteBalance = when {
             kelvinMatch != null || "KELVIN" in wbRaw -> WhiteBalance.KELVIN
-            "DAYLIGHT" in wbRaw -> WhiteBalance.DAYLIGHT
-            "SHADE" in wbRaw -> WhiteBalance.SHADE
+            "DAYLIGHT" in wbRaw || "JOUR" in wbRaw || "SOLEIL" in wbRaw -> WhiteBalance.DAYLIGHT
+            "SHADE" in wbRaw || "OMBRE" in wbRaw -> WhiteBalance.SHADE
             "FLUORESCENT" in wbRaw -> when {
                 "3" in wbRaw -> WhiteBalance.FLUORESCENT_3
                 "2" in wbRaw -> WhiteBalance.FLUORESCENT_2
                 else -> WhiteBalance.FLUORESCENT_1
             }
             "INCANDESCENT" in wbRaw -> WhiteBalance.INCANDESCENT
-            "UNDERWATER" in wbRaw -> WhiteBalance.UNDERWATER
+            "UNDERWATER" in wbRaw || "SOUS-MARIN" in wbRaw -> WhiteBalance.UNDERWATER
             else -> WhiteBalance.AUTO
         }
 

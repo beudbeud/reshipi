@@ -335,6 +335,48 @@ class FujiStyleCardTest {
     }
 
     @Test
+    fun parsesAFrenchRecipe() {
+        // Pasted verbatim from a French recipe page, accents, "Décalage" and all.
+        val r = FujiStyleCard.parse(
+            """
+            Recette de simulation de film Fujifilm (Cyberpunk Night)
+            Simulation de base : Classic Chrome
+            Gamme dynamique : DR400
+            Surbrillance : -2
+            Ombre : +3
+            Couleur : +3
+            Réduction du bruit : -4
+            Netteté : +2
+            Effet de grain : Faible, Petit
+            Balance des blancs : 3000K (Décalage : Rouge -3, Bleu +4)
+            Clarté : -3
+            """.trimIndent()
+        )!!
+        assertEquals(FilmSimulation.CLASSIC_CHROME, r.filmSimulation)
+        assertEquals(DynamicRange.DR400, r.dynamicRange)
+        assertEquals(-2.0, r.highlight, 0.0)
+        assertEquals(3.0, r.shadow, 0.0)
+        assertEquals(3, r.color)
+        assertEquals(-4, r.noiseReduction)
+        assertEquals(2, r.sharpness)
+        assertEquals(Strength.WEAK, r.grainEffect)    // Faible
+        assertEquals(GrainSize.SMALL, r.grainSize)    // Petit
+        assertEquals(WhiteBalance.KELVIN, r.whiteBalance)
+        assertEquals(3000, r.kelvin)
+        assertEquals(-3, r.wbShiftRed)
+        assertEquals(4, r.wbShiftBlue)
+        assertEquals(-3, r.clarity)
+    }
+
+    @Test
+    fun aFrenchShadeValueIsNotTheShadowsField() {
+        // "Ombre" is both the Shadows key and the Shade white balance value
+        val r = FujiStyleCard.parse("Simulation de film : Provia | Balance des blancs : Ombre")!!
+        assertEquals(WhiteBalance.SHADE, r.whiteBalance)
+        assertEquals(0.0, r.shadow, 0.0)
+    }
+
+    @Test
     fun rejectsTextWithoutFilmSimulation() {
         assertNull(FujiStyleCard.parse("random text with no recipe"))
         assertNull(FujiStyleCard.parse("Film Simulation: SOMETHING UNKNOWN | Red: 1"))

@@ -240,7 +240,10 @@ fun ListScreen(
                         val recipes = FujiStyleCard.parseAll(textInput, tag = "import")
                         when {
                             recipes.isEmpty() -> scope.launch {
-                                snackbar.showSnackbar(context.getString(R.string.card_parse_failed))
+                                snackbar.showSnackbar(
+                                    message = context.getString(R.string.text_parse_failed),
+                                    duration = SnackbarDuration.Long,
+                                )
                             }
                             recipes.size == 1 -> {
                                 showTextImport = false

@@ -11,7 +11,8 @@
     <string name="import_text">Import from text</string>
     <string name="paste_recipe">Paste a recipe (one setting per line or FujiStyle format)</string>
     <string name="create">Create</string>
-    <string name="card_parse_failed">Could not read a recipe from this image</string>
+    <string name="text_parse_failed">No recipe in this text: it needs a line naming the film, such as "Film Simulation: Classic Chrome"</string>
+    <string name="url_parse_failed">No recipe found on this page</string>
     <string name="tags_label">Tags (comma separated)</string>
     <string name="tags">Tags</string>
     <string name="photo_no_recipe">No recipe found in this image (neither Fujifilm EXIF nor a readable recipe card).</string>

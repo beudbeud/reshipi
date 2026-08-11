@@ -90,14 +90,17 @@ fun App(repo: RecipeRepository, sharedText: String? = null, sharedImage: android
         // Shared from another app: a recipe page URL or pasted recipe text
         LaunchedEffect(sharedText) {
             if (sharedText != null) {
+                val url = Regex("https?://\\S+").find(sharedText)?.value
                 val recipes = withContext(Dispatchers.IO) {
-                    val url = Regex("https?://\\S+").find(sharedText)?.value
                     if (url != null) WebImport.fetch(url, repo)
                     else FujiStyleCard.parseAll(sharedText, tag = "import")
                 }
                 when {
-                    recipes.isEmpty() ->
-                        Toast.makeText(context, R.string.card_parse_failed, Toast.LENGTH_LONG).show()
+                    recipes.isEmpty() -> Toast.makeText(
+                        context,
+                        if (url != null) R.string.url_parse_failed else R.string.text_parse_failed,
+                        Toast.LENGTH_LONG,
+                    ).show()
                     recipes.size == 1 -> {
                         photoDraft = recipes.first()
                         screen = Screen.Edit(null)

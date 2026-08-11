@@ -10,7 +10,8 @@
     <string name="import_text">Importer depuis du texte</string>
     <string name="paste_recipe">Colle une recette (un réglage par ligne ou format FujiStyle)</string>
     <string name="create">Créer</string>
-    <string name="card_parse_failed">Impossible de lire une recette dans cette image</string>
+    <string name="text_parse_failed">Aucune recette dans ce texte : il faut une ligne qui nomme la pellicule, par exemple « Simulation de film : Classic Chrome »</string>
+    <string name="url_parse_failed">Aucune recette trouvée sur cette page</string>
     <string name="tags_label">Tags (séparés par des virgules)</string>
     <string name="tags">Tags</string>
     <string name="photo_no_recipe">Aucune recette trouvée dans cette image (ni EXIF Fujifilm, ni carte de recette lisible).</string>
