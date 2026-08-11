@@ -17,10 +17,13 @@ object DonorRaf {
 
     fun exists(context: Context) = file(context).length() > 0
 
-    /** Remembers [raf]'s container. Silently does nothing for files we cannot rewrite. */
-    fun save(context: Context, raf: ByteArray) {
-        val layout = SyntheticRaf.layout(raf) ?: return
-        runCatching { file(context).writeBytes(raf.copyOfRange(0, layout.pixels)) }
+    /**
+     * Remembers [raf]'s container, returning whether it could be kept. A
+     * compressed file has no container we can paint into, so it is not one.
+     */
+    fun save(context: Context, raf: ByteArray): Boolean {
+        val layout = SyntheticRaf.layout(raf) ?: return false
+        return runCatching { file(context).writeBytes(raf.copyOfRange(0, layout.pixels)) }.isSuccess
     }
 
     /** The stored container, resized back to a full RAF, or null if none is kept. */

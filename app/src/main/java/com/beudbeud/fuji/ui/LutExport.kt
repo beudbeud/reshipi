@@ -84,6 +84,14 @@ fun LutExportDialog(recipe: Recipe, onDismiss: () -> Unit) {
         scope.launch {
             runCatching {
                 val raf = withContext(Dispatchers.IO) { source() }
+                // Keep the container the moment we have one that can carry a
+                // chart. Waiting for the conversion to succeed made the cache
+                // depend on the camera being plugged in and on the recipe
+                // rendering, neither of which says anything about the file.
+                if (DonorRaf.save(context, raf)) {
+                    donorReady = true
+                    DebugLog.log("donor kept: ${RafFile.cameraModel(raf)}")
+                }
                 val camera = connectFujiCamera(context)
                 withContext(Dispatchers.IO) {
                     try {
@@ -99,6 +107,11 @@ fun LutExportDialog(recipe: Recipe, onDismiss: () -> Unit) {
                             )
                         val body = camera.modelName()
                         if (!rafModel.equals(body, ignoreCase = true)) {
+                            // Whatever we just kept is from another body, and a
+                            // kept container is reused silently — drop it rather
+                            // than fail identically for ever.
+                            DonorRaf.forget(context)
+                            donorReady = false
                             throw java.io.IOException(
                                 context.getString(R.string.raf_wrong_camera, rafModel, body)
                             )
@@ -113,9 +126,6 @@ fun LutExportDialog(recipe: Recipe, onDismiss: () -> Unit) {
                                 throw java.io.IOException(context.getString(R.string.raf_compressed))
                             }
                         }
-                        // Keep the container so the next chart export needs no file
-                        DonorRaf.save(context, raf)
-                        donorReady = true
 
                         // Provia with every adjustment at rest — the "before" a LUT
                         // is meant to be applied on top of.
