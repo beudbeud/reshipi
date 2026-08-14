@@ -23,8 +23,10 @@ android {
         applicationId = "com.beudbeud.fuji"
         minSdk = 26
         targetSdk = 35
-        versionCode = 61
-        versionName = "1.12.1"
+        // ponytail: versionCode keeps climbing across the 1.0.0 reset —
+        // Android refuses downgrades, resetting it would force a reinstall.
+        versionCode = 62
+        versionName = "1.0.0"
     }
 
     signingConfigs {

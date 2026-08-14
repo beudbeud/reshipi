@@ -8,6 +8,10 @@ film simulation, white balance and shifts, tone curve, grain, Color Chrome,
 and every other JPEG-engine setting, organised per sensor generation
 (X-Trans I → V) so the form only shows what your camera actually has.
 
+| Library | Editing | Camera slots | Send over USB |
+|---|---|---|---|
+| ![Recipe library](docs/screenshots/library.jpeg) | ![Recipe editor](docs/screenshots/edit.jpeg) | ![C1–C7 slots](docs/screenshots/camera-slots.jpeg) | ![Send to camera](docs/screenshots/send.jpeg) |
+
 ## Features
 
 **Recipe library**
