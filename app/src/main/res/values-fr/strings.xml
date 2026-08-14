@@ -168,4 +168,5 @@
     <string name="lut_coverage">%1$d%% du cube de couleurs mesuré</string>
     <string name="lut_caveat">Les couleurs absentes de l\'image sont interpolées. Une photo variée et colorée donne une meilleure LUT. Clarté et grain sont des effets spatiaux, non représentables dans une LUT.</string>
     <string name="lut_save">Enregistrer le .cube</string>
+    <string name="lut_gen_unsupported">La création de LUT n\'est pas encore compatible avec le %1$s — seuls les boîtiers X-Trans V (X-T30 III, X-T5, X100VI…) sont pris en charge pour l\'instant.</string>
 </resources>

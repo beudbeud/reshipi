@@ -32,8 +32,10 @@ import com.beudbeud.fuji.data.RafFile
 import com.beudbeud.fuji.data.SyntheticRaf
 import com.beudbeud.fuji.data.ptp.FujiProp
 import com.beudbeud.fuji.data.ptp.patchProfile
+import com.beudbeud.fuji.model.CAMERA_MODELS
 import com.beudbeud.fuji.model.DynamicRange
 import com.beudbeud.fuji.model.FilmSimulation
+import com.beudbeud.fuji.model.Generation
 import com.beudbeud.fuji.model.Recipe
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -108,6 +110,13 @@ fun LutExportDialog(recipe: Recipe, onDismiss: () -> Unit) {
                                 )
                             )
                         val body = camera.modelName()
+                        // The chart geometry and profile patching are only
+                        // validated on X-Trans V-class bodies; unknown or older
+                        // generations are refused rather than mis-measured.
+                        val gen = CAMERA_MODELS.firstOrNull { it.first.equals(body, ignoreCase = true) }?.second
+                        if (gen != Generation.X_TRANS_V) {
+                            throw java.io.IOException(context.getString(R.string.lut_gen_unsupported, body))
+                        }
                         if (!rafModel.equals(body, ignoreCase = true)) {
                             // Whatever we just kept is from another body, and a
                             // kept container is reused silently — drop it rather
