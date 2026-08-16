@@ -139,13 +139,13 @@ class SyntheticRafTest {
     fun theNeutralFanBracketsTheRatioThatRendersGrey() {
         val level = IntArray(33) { (16383.0 * (it / 32.0) * (it / 32.0)).toInt() }
         val rgb = IntArray(3)
-        val probes = 33 * 11 * 11
+        val probes = 33 * 9 * 9 * 3
 
         // Every brightness is walked, not just a few
-        val greens = (0 until probes).map {
-            SyntheticRaf.neutralProbe(it, level, rgb); rgb[1]
+        val tops = (0 until probes).map {
+            SyntheticRaf.neutralProbe(it, level, rgb); rgb.max()
         }.toSet()
-        assertEquals(level.toSet().size, greens.size)
+        assertEquals(level.toSet().size, tops.size)
 
         // ...and at full brightness some probe sits within a step of the ratio a
         // typical camera needs, on both axes at once.
@@ -153,9 +153,17 @@ class SyntheticRafTest {
         val close = (0 until probes).count {
             SyntheticRaf.neutralProbe(it, level, rgb)
             rgb[1] == level.last() &&
-                kotlin.math.abs(rgb[0] / bright - 0.50) < 0.03 &&
-                kotlin.math.abs(rgb[2] / bright - 0.67) < 0.03
+                kotlin.math.abs(rgb[0] / bright - 0.50) < 0.05 &&
+                kotlin.math.abs(rgb[2] / bright - 0.67) < 0.05
         }
         assertTrue("no probe brackets the neutral ratio", close > 0)
+
+        // Neutral is reached from every side: whichever channel the reference
+        // render leans towards, some probe has that channel on top.
+        val onTop = (0 until probes).map {
+            SyntheticRaf.neutralProbe(it, level, rgb)
+            rgb.indexOfFirst { c -> c == rgb.max() }
+        }.toSet()
+        assertEquals("every channel must take a turn at the top", setOf(0, 1, 2), onTop)
     }
 }

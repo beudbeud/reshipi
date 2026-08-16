@@ -115,7 +115,7 @@ object SyntheticRaf {
         }
         val site = Array(6) { y -> IntArray(6) { x -> layout.pattern[((y + PHASE) % 6) * 6 + (x + PHASE) % 6].toInt() } }
         val combinations = steps * steps * steps
-        val neutrals = steps * GAINS * GAINS
+        val neutrals = steps * GAINS * GAINS * ORIENTATIONS
         val spare = cols * rows - combinations
         val rgb = IntArray(3)
         // Says plainly that a chart was painted, and on what geometry — otherwise
@@ -158,11 +158,12 @@ object SyntheticRaf {
     }
 
     /** Ratios either side of what a camera's own channel gains need. */
-    private const val GAINS = 11
-    private const val RED_MIN = 0.35
-    private const val RED_MAX = 0.85
-    private const val BLUE_MIN = 0.45
-    private const val BLUE_MAX = 0.95
+    private const val GAINS = 9
+    private const val RATIO_MIN = 0.35
+    private const val RATIO_MAX = 1.0
+
+    /** Green on top, then red, then blue: the fan reaches neutral from every side. */
+    private const val ORIENTATIONS = 3
 
     /**
      * Fills [rgb] with probe number [n] of the neutral fan.
@@ -181,12 +182,19 @@ object SyntheticRaf {
      */
     internal fun neutralProbe(n: Int, level: IntArray, rgb: IntArray) {
         val steps = level.size
-        val green = level[n % steps]
-        val redStep = (n / steps) % GAINS
-        val blueStep = n / (steps * GAINS)
-        fun ratio(min: Double, max: Double, i: Int) = min + (max - min) * i / (GAINS - 1)
-        rgb[0] = (green * ratio(RED_MIN, RED_MAX, redStep)).roundToInt().coerceIn(0, MAX)
-        rgb[1] = green
-        rgb[2] = (green * ratio(BLUE_MIN, BLUE_MAX, blueStep)).roundToInt().coerceIn(0, MAX)
+        val top = level[n % steps]
+        fun ratio(i: Int) =
+            (top * (RATIO_MIN + (RATIO_MAX - RATIO_MIN) * i / (GAINS - 1))).roundToInt().coerceIn(0, MAX)
+        val first = ratio((n / steps) % GAINS)
+        val second = ratio((n / (steps * GAINS)) % GAINS)
+        // Which channel sits at the top decides which side of neutral the probe
+        // approaches from. Fixing green there only reaches neutral when the
+        // reference render leans magenta; at DR400 it leans green instead, and
+        // the neutral axis fell from 21 measured cells of 33 to 11.
+        when (n / (steps * GAINS * GAINS) % ORIENTATIONS) {
+            0 -> { rgb[0] = first; rgb[1] = top; rgb[2] = second }
+            1 -> { rgb[0] = top; rgb[1] = first; rgb[2] = second }
+            else -> { rgb[0] = first; rgb[1] = second; rgb[2] = top }
+        }
     }
 }
