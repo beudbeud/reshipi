@@ -7,19 +7,34 @@ package com.beudbeud.fuji.data
  * pixel pair is one (input colour → output colour) sample. A single frame gives
  * millions of them, so no colour chart is needed.
  *
- * The catch is coverage: a scene only contains the colours it contains. Grid
- * cells no pixel landed in are filled from their neighbours, and cells the fill
- * cannot reach pass colour through unchanged. [coverage] reports how much of the
- * cube was actually measured, which is the honest quality figure for the result.
+ * The catch is coverage: a scene only contains the colours it contains, and a
+ * chart only the colours the camera can render. [coverage] reports how much of
+ * the cube a real measurement backs, which is the honest quality figure.
  *
  * Clarity and grain are spatial effects and cannot be represented here at all.
  */
 class CubeLut(val size: Int = 33) {
     init { require(size in 2..64) { "LUT size $size out of range" } }
 
-    private val cells = size * size * size
-    private val sum = DoubleArray(cells * 3)
-    private val weight = DoubleArray(cells)
+    private val nodes = size * size * size
+
+    /** Cells are the gaps between nodes, so one fewer per axis. */
+    private val side = size - 1
+    private val cellCount = side * side * side
+
+    /**
+     * One cell's contribution to the normal equations: the upper triangle of the
+     * 8x8 corner-weight products, then eight corners times three channels of
+     * right-hand side.
+     */
+    private val block = DoubleArray(cellCount * BLOCK)
+    private val used = BooleanArray(cellCount)
+
+    /** Total sample weight landing on each node, for [coverage] only. */
+    private val weight = DoubleArray(nodes)
+
+    private val corner = DoubleArray(8)
+    private val at = IntArray(8)
 
     /** Red varies fastest, as the .cube format requires. */
     private fun index(r: Int, g: Int, b: Int) = (b * size + g) * size + r
@@ -27,237 +42,350 @@ class CubeLut(val size: Int = 33) {
     /**
      * Record that input colour [src] came out as [dst]. Channels are 0..255.
      *
-     * The sample almost never lands on a grid node — the chart controls raw
-     * values, not what the camera's pipeline renders them as — so its weight is
-     * spread over the eight nodes around it, in proportion to how close it is to
-     * each. Snapping to the nearest node instead makes every node the average of
-     * its whole surrounding box, which flattens the transform exactly where it
-     * curves most: the shadows and the saturated colours a recipe works on.
+     * What is stored is not the sample but its contribution to a least-squares
+     * problem: find the node values whose *trilinear interpolation* best
+     * reproduces every sample. That is the question that matters, because
+     * trilinear interpolation is exactly what the software reading the .cube
+     * will do — fitting anything else means fitting the wrong thing.
+     *
+     * Only the deviation from the identity LUT is fitted. Interpolating the
+     * identity returns the input exactly, so the residual is what the recipe
+     * added, and a cell no sample reached simply stays at zero deviation — no
+     * separate pass has to go and fill it in.
      */
     fun accumulate(srcR: Int, srcG: Int, srcB: Int, dstR: Int, dstG: Int, dstB: Int) {
         val span = size - 1
         val fr = srcR.coerceIn(0, 255) * span / 255.0
         val fg = srcG.coerceIn(0, 255) * span / 255.0
         val fb = srcB.coerceIn(0, 255) * span / 255.0
-        // Clamped one short of the top so the upper node of each pair exists;
+        // Clamped one short of the top so the upper corner of each cell exists;
         // a sample sitting exactly on the last node then has t = 1 and lands
         // wholly on it, which is what we want.
-        val r0 = fr.toInt().coerceIn(0, size - 2)
-        val g0 = fg.toInt().coerceIn(0, size - 2)
-        val b0 = fb.toInt().coerceIn(0, size - 2)
+        val r0 = fr.toInt().coerceIn(0, span - 1)
+        val g0 = fg.toInt().coerceIn(0, span - 1)
+        val b0 = fb.toInt().coerceIn(0, span - 1)
         val tr = fr - r0
         val tg = fg - g0
         val tb = fb - b0
 
-        val dr = dstR / 255.0
-        val dg = dstG / 255.0
-        val db = dstB / 255.0
+        var n = 0
         for (i in 0..1) {
             val wr = if (i == 0) 1.0 - tr else tr
-            if (wr <= 0.0) continue
             for (j in 0..1) {
                 val wg = wr * (if (j == 0) 1.0 - tg else tg)
-                if (wg <= 0.0) continue
                 for (k in 0..1) {
-                    val w = wg * (if (k == 0) 1.0 - tb else tb)
-                    if (w <= 0.0) continue
-                    val c = index(r0 + i, g0 + j, b0 + k)
-                    weight[c] += w
-                    sum[c * 3] += w * dr
-                    sum[c * 3 + 1] += w * dg
-                    sum[c * 3 + 2] += w * db
+                    corner[n] = wg * (if (k == 0) 1.0 - tb else tb)
+                    weight[index(r0 + i, g0 + j, b0 + k)] += corner[n]
+                    n++
                 }
             }
+        }
+
+        val dr = (dstR - srcR) / 255.0
+        val dg = (dstG - srcG) / 255.0
+        val db = (dstB - srcB) / 255.0
+        val cell = (b0 * side + g0) * side + r0
+        used[cell] = true
+        var p = cell * BLOCK
+        for (a in 0..7) {
+            val wa = corner[a]
+            for (b in a..7) block[p++] += wa * corner[b]
+        }
+        for (a in 0..7) {
+            val wa = corner[a]
+            block[p++] += wa * dr
+            block[p++] += wa * dg
+            block[p++] += wa * db
         }
     }
 
     /**
      * Total evidence below which a cell is noise rather than a measurement.
      *
-     * Splatting spreads every sample over eight nodes, so a cell can end up
-     * holding a sliver of one sample from a colour that never really landed in
-     * it. On a real export that was 59% of the cells touched, and pinning them
-     * made the fill step around values that were never measured. The bar is a
-     * share of what a typical cell carries, so it means the same thing whether
-     * the export gathered four million samples or four.
+     * Splatting spreads every sample over eight nodes, so a node can end up
+     * holding a sliver of one sample from a colour that never really landed near
+     * it. On a real export that was 59% of the nodes touched. The bar is a share
+     * of what a typical node carries, so it means the same thing whether the
+     * export gathered four million samples or four.
      */
     private fun trustFloor(): Double {
         val touched = weight.count { it > 0.0 }
-        return if (touched == 0) 0.0 else weight.sum() / touched * THIN_CELL
+        return if (touched == 0) 0.0 else weight.sum() / touched * THIN_NODE
     }
 
     /** Fraction of the cube backed by a real measurement rather than inferred, 0..1. */
     fun coverage(): Float {
         val floor = trustFloor()
         if (floor <= 0.0) return 0f
-        return weight.count { it >= floor }.toFloat() / cells
+        return weight.count { it >= floor }.toFloat() / nodes
     }
 
-    /**
-     * Averaged samples, with unvisited cells grown from their filled neighbours.
-     * Cells still unreached pass through unchanged, so the LUT degrades to the
-     * identity in colours the frame never contained rather than to nonsense.
-     */
-    fun build(): FloatArray {
-        val out = FloatArray(cells * 3)
-        val filled = BooleanArray(cells)
-        // Measured cells are pinned: the relaxation below may smooth what we
-        // invented, never what the camera actually told us.
-        val measured = BooleanArray(cells)
-        val touched = weight.count { it > 0.0 }
-        val floor = trustFloor()
-        var thin = 0
-        for (i in 0 until cells) {
-            if (weight[i] <= 0.0) continue
-            if (weight[i] < floor) {
-                thin++
-                continue
-            }
-            filled[i] = true
-            measured[i] = true
-            for (c in 0..2) out[i * 3 + c] = (sum[i * 3 + c] / weight[i]).toFloat()
+    /** Writes the eight node indices of [cell] into [at]. */
+    private fun cornersOf(cell: Int) {
+        val r0 = cell % side
+        val g0 = (cell / side) % side
+        val b0 = cell / (side * side)
+        var n = 0
+        for (i in 0..1) for (j in 0..1) for (k in 0..1) {
+            at[n++] = index(r0 + i, g0 + j, b0 + k)
         }
-        // The neutral axis is the one that matters most and the one a chart is
-        // least likely to hit: sweeping raw values uniformly rarely lands on the
-        // ratio that renders grey, because the camera's own channel gains are far
-        // from equal. If these cells are not measured they are interpolated from
-        // coloured neighbours, and greys inherit whatever those lean towards.
-        val grey = (0 until size).count { weight[index(it, it, it)] >= floor }
-        DebugLog.log(
-            "lut cells: $touched touched, $thin too thin to trust, ${touched - thin} kept, " +
-                "grey axis $grey/$size measured"
-        )
-        // Dilate into the empty cells until the cube is full or nothing spreads.
-        // `repeat` cannot break, so the loop is explicit: the old return@repeat
-        // read as a stop but only skipped a round, rescanning the whole cube for
-        // every remaining one after the dilation had already finished.
-        var pending = (0 until cells).filterNot { filled[it] }
-        var round = 0
-        while (pending.isNotEmpty() && round++ < size) {
-            val grown = mutableListOf<Pair<Int, FloatArray>>()
-            for (i in pending) {
-                val r = i % size
-                val g = (i / size) % size
-                val b = i / (size * size)
-                val acc = FloatArray(3)
-                var n = 0
-                for ((dr, dg, db) in NEIGHBOURS) {
-                    val nr = r + dr; val ng = g + dg; val nb = b + db
-                    if (nr !in 0 until size || ng !in 0 until size || nb !in 0 until size) continue
-                    val j = index(nr, ng, nb)
-                    if (!filled[j]) continue
-                    for (c in 0..2) acc[c] += out[j * 3 + c]
-                    n++
+    }
+
+    /** out = (AᵀA + smooth·L + pull·I) · x, over the three channels at once. */
+    private fun apply(x: DoubleArray, out: DoubleArray, smooth: Double, pull: Double) {
+        java.util.Arrays.fill(out, 0.0)
+        for (cell in 0 until cellCount) {
+            if (!used[cell]) continue
+            cornersOf(cell)
+            var p = cell * BLOCK
+            for (a in 0..7) {
+                val ia = at[a] * 3
+                for (b in a..7) {
+                    val m = block[p++]
+                    if (m == 0.0) continue
+                    val ib = at[b] * 3
+                    if (a == b) {
+                        for (c in 0..2) out[ia + c] += m * x[ia + c]
+                    } else {
+                        for (c in 0..2) {
+                            out[ia + c] += m * x[ib + c]
+                            out[ib + c] += m * x[ia + c]
+                        }
+                    }
                 }
-                if (n > 0) grown += i to FloatArray(3) { acc[it] / n }
             }
-            if (grown.isEmpty()) break
-            for ((i, v) in grown) {
-                filled[i] = true
-                for (c in 0..2) out[i * 3 + c] = v[c]
-            }
-            pending = pending.filterNot { filled[it] }
         }
-        // Never measured, never reached: leave the colour alone
-        for (i in 0 until cells) {
-            if (filled[i]) continue
+        // Smoothness between neighbouring nodes, plus a pull towards leaving the
+        // colour alone. Together they decide what happens where nothing was
+        // measured: neighbours drag a node into line, and far from any data the
+        // pull wins and the deviation fades to nothing.
+        for (i in 0 until nodes) {
             val r = i % size
             val g = (i / size) % size
             val b = i / (size * size)
-            out[i * 3] = r.toFloat() / (size - 1)
-            out[i * 3 + 1] = g.toFloat() / (size - 1)
-            out[i * 3 + 2] = b.toFloat() / (size - 1)
+            var degree = 0
+            val base = i * 3
+            for ((dr, dg, db) in NEIGHBOURS) {
+                val nr = r + dr; val ng = g + dg; val nb = b + db
+                if (nr !in 0 until size || ng !in 0 until size || nb !in 0 until size) continue
+                degree++
+                val j = index(nr, ng, nb) * 3
+                for (c in 0..2) out[base + c] -= smooth * x[j + c]
+            }
+            for (c in 0..2) out[base + c] += (smooth * degree + pull) * x[base + c]
         }
-        relax(out, filled, measured)
-        reportHardSteps(out, measured)
+    }
+
+    /**
+     * The node values whose trilinear interpolation best matches every sample.
+     *
+     * One solve replaces what used to be four passes — average per node, drop the
+     * thinly-measured ones, dilate outwards, then relax the result — each of
+     * which had its own failure: fronts meeting in a cliff, then flat plateaus
+     * where the smoothing was made monotone. Here the same three demands are one
+     * system: match the data, stay smooth, and fade to the identity where there
+     * is no data. Conjugate gradient solves it, Jacobi-preconditioned.
+     */
+    fun build(): FloatArray {
+        // Scale the regularisers to the data so they mean the same thing for a
+        // four-million-sample chart and for a two-sample test.
+        var diagonal = 0.0
+        var counted = 0
+        for (cell in 0 until cellCount) {
+            if (!used[cell]) continue
+            var p = cell * BLOCK
+            for (a in 0..7) {
+                diagonal += block[p]
+                counted++
+                p += 8 - a
+            }
+        }
+        val scale = if (counted == 0) 1.0 else diagonal / counted
+        val smooth = SMOOTH * scale
+        val pull = PULL * scale
+
+        val n = nodes * 3
+        val rhs = DoubleArray(n)
+        for (cell in 0 until cellCount) {
+            if (!used[cell]) continue
+            cornersOf(cell)
+            var p = cell * BLOCK + 36
+            for (a in 0..7) {
+                val base = at[a] * 3
+                for (c in 0..2) rhs[base + c] += block[p++]
+            }
+        }
+
+        // Jacobi preconditioner: the diagonal of the whole system.
+        val inverse = DoubleArray(nodes)
+        run {
+            val diag = DoubleArray(nodes)
+            for (cell in 0 until cellCount) {
+                if (!used[cell]) continue
+                cornersOf(cell)
+                var p = cell * BLOCK
+                for (a in 0..7) {
+                    diag[at[a]] += block[p]
+                    p += 8 - a
+                }
+            }
+            for (i in 0 until nodes) {
+                val r = i % size
+                val g = (i / size) % size
+                val b = i / (size * size)
+                var degree = 0
+                for ((dr, dg, db) in NEIGHBOURS) {
+                    if (r + dr !in 0 until size || g + dg !in 0 until size ||
+                        b + db !in 0 until size
+                    ) continue
+                    degree++
+                }
+                val d = diag[i] + smooth * degree + pull
+                inverse[i] = if (d > 0.0) 1.0 / d else 0.0
+            }
+        }
+
+        val x = DoubleArray(n)
+        val r = rhs.copyOf()
+        val z = DoubleArray(n)
+        for (i in 0 until nodes) for (c in 0..2) z[i * 3 + c] = inverse[i] * r[i * 3 + c]
+        val p = z.copyOf()
+        val ap = DoubleArray(n)
+        var rz = dot(r, z)
+        val target = rz * TOLERANCE
+        var iterations = 0
+        while (iterations < MAX_STEPS && rz > target && rz > 0.0) {
+            apply(p, ap, smooth, pull)
+            val denominator = dot(p, ap)
+            if (denominator <= 0.0) break
+            val alpha = rz / denominator
+            for (i in 0 until n) {
+                x[i] += alpha * p[i]
+                r[i] -= alpha * ap[i]
+            }
+            for (i in 0 until nodes) for (c in 0..2) z[i * 3 + c] = inverse[i] * r[i * 3 + c]
+            val next = dot(r, z)
+            val beta = next / rz
+            for (i in 0 until n) p[i] = z[i] + beta * p[i]
+            rz = next
+            iterations++
+        }
+        val held = project(x, rhs, smooth, pull)
+        DebugLog.log(
+            "lut solve: $iterations steps, residual ${"%.2e".format(rz)}, " +
+                "$held of ${nodes * 3} held at a bound"
+        )
+
+        // Deviations become absolute values by adding back the identity they were
+        // measured against.
+        val out = FloatArray(n)
+        for (i in 0 until nodes) {
+            val rr = (i % size).toFloat() / (size - 1)
+            val gg = ((i / size) % size).toFloat() / (size - 1)
+            val bb = (i / (size * size)).toFloat() / (size - 1)
+            // Already inside 0..1 by construction — the projection above keeps
+            // each deviation within reach of its own identity value.
+            out[i * 3] = (rr + x[i * 3]).toFloat()
+            out[i * 3 + 1] = (gg + x[i * 3 + 1]).toFloat()
+            out[i * 3 + 2] = (bb + x[i * 3 + 2]).toFloat()
+        }
+        val floor = trustFloor()
+        val grey = (0 until size).count { weight[index(it, it, it)] >= floor }
+        DebugLog.log("lut cells: ${weight.count { it >= floor }}/$nodes measured, grey axis $grey/$size")
         return out
     }
 
-    /**
-     * Counts adjacent nodes the grid steps hard between, and says how many of
-     * those steps touch a cell we invented.
-     *
-     * The two cannot be told apart from the exported file — comparing two exports
-     * fails because each is a separate conversion and even measured cells shift
-     * slightly between runs. Yet the answer decides what is worth doing: a hard
-     * step between two measurements is the camera clipping at the edge of its
-     * gamut and must be left alone, while one between invented cells is ours.
-     */
-    private fun reportHardSteps(out: FloatArray, measured: BooleanArray) {
-        var hard = 0
-        var invented = 0
-        for (i in 0 until cells) {
-            val r = i % size
-            val g = (i / size) % size
-            val b = i / (size * size)
-            for ((dr, dg, db) in FORWARD) {
-                if (r + dr >= size || g + dg >= size || b + db >= size) continue
-                val j = index(r + dr, g + dg, b + db)
-                var step = 0f
-                for (c in 0..2) {
-                    val d = kotlin.math.abs(out[i * 3 + c] - out[j * 3 + c])
-                    if (d > step) step = d
-                }
-                if (step <= HARD_STEP) continue
-                hard++
-                if (!measured[i] || !measured[j]) invented++
-            }
-        }
-        DebugLog.log("lut fill: $hard steps over $HARD_STEP, $invented touching an invented cell")
-    }
+    /** Offset of M[a][b] inside a cell's packed upper triangle, for a <= b. */
+    private fun triangle(a: Int, b: Int) = (8 * a - a * (a - 1) / 2) + (b - a)
 
     /**
-     * Smooths the cells we invented, leaving the measured ones exactly as
-     * measured.
+     * Settles [x] against its bounds, which the unconstrained solve ignores.
      *
-     * The dilation above freezes each cell on whichever neighbours reached it
-     * first, which leaves plateaus and cliffs: a measured export came back with a
-     * neutral grey ramp that dipped and then jumped by a third of its range
-     * between two adjacent nodes — visible as a tonal break on flat greys.
-     * Repeatedly averaging each invented cell over its neighbours, with the
-     * measured ones held fixed, converges to the smoothest surface that still
-     * passes through every real measurement.
+     * Clamping only at the end leaves a node pinned at the edge while all its
+     * neighbours were fitted expecting the value it wanted, which is how both
+     * published generators describe their remaining defect — outliers at extreme
+     * colours, wrong boundary entries despite enough data. Gauss-Seidel visits
+     * one node at a time and clamps as it goes, so every later node sees the
+     * clamped value and settles around it.
      *
-     * Cells the dilation never reached keep their identity value: with almost no
-     * data, passing colour through beats smearing one lonely sample over the
-     * whole cube.
+     * Returns how many node-channels the bounds actually held back; on a cube
+     * that never leaves range this is zero and nothing was changed.
      */
-    private fun relax(out: FloatArray, filled: BooleanArray, measured: BooleanArray) {
-        val acc = DoubleArray(3)
-        // Two sweeps per grid step is enough: the gaps between measurements are
-        // pockets a few cells wide, not open voids, so this settles quickly.
-        // Over-relaxing to converge faster was tried on a real export and moved
-        // nothing — 328 hard steps against 318 — so the plain average stays.
-        repeat(size * 2) {
-            for (i in 0 until cells) {
-                if (measured[i] || !filled[i]) continue
+    private fun project(x: DoubleArray, rhs: DoubleArray, smooth: Double, pull: Double): Int {
+        var held = 0
+        repeat(SWEEPS) { sweep ->
+            held = 0
+            for (i in 0 until nodes) {
                 val r = i % size
                 val g = (i / size) % size
                 val b = i / (size * size)
-                acc[0] = 0.0; acc[1] = 0.0; acc[2] = 0.0
-                var n = 0
+                val base = i * 3
+                val off = DoubleArray(3)
+                var diagonal = pull
+
+                // Every cell this node is a corner of
+                for (dr in -1..0) for (dg in -1..0) for (db in -1..0) {
+                    val r0 = r + dr; val g0 = g + dg; val b0 = b + db
+                    if (r0 !in 0 until side || g0 !in 0 until side || b0 !in 0 until side) continue
+                    val cell = (b0 * side + g0) * side + r0
+                    if (!used[cell]) continue
+                    cornersOf(cell)
+                    val a = (-dr) * 4 + (-dg) * 2 + (-db)
+                    val cellBase = cell * BLOCK
+                    diagonal += block[cellBase + triangle(a, a)]
+                    for (c2 in 0..7) {
+                        if (c2 == a) continue
+                        val m = block[cellBase + if (a <= c2) triangle(a, c2) else triangle(c2, a)]
+                        if (m == 0.0) continue
+                        val j = at[c2] * 3
+                        for (ch in 0..2) off[ch] += m * x[j + ch]
+                    }
+                }
+
+                var degree = 0
                 for ((dr, dg, db) in NEIGHBOURS) {
                     val nr = r + dr; val ng = g + dg; val nb = b + db
                     if (nr !in 0 until size || ng !in 0 until size || nb !in 0 until size) continue
-                    val j = index(nr, ng, nb)
-                    for (c in 0..2) acc[c] += out[j * 3 + c]
-                    n++
+                    degree++
+                    val j = index(nr, ng, nb) * 3
+                    for (ch in 0..2) off[ch] -= smooth * x[j + ch]
                 }
-                if (n > 0) for (c in 0..2) out[i * 3 + c] = (acc[c] / n).toFloat()
+                diagonal += smooth * degree
+                if (diagonal <= 0.0) continue
+
+                val identity = doubleArrayOf(
+                    r.toDouble() / (size - 1),
+                    g.toDouble() / (size - 1),
+                    b.toDouble() / (size - 1),
+                )
+                for (ch in 0..2) {
+                    val free = (rhs[base + ch] - off[ch]) / diagonal
+                    // The deviation may not take the value outside 0..1
+                    val bounded = free.coerceIn(-identity[ch], 1.0 - identity[ch])
+                    if (sweep == SWEEPS - 1 && bounded != free) held++
+                    x[base + ch] += RELAX * (bounded - x[base + ch])
+                    x[base + ch] = x[base + ch].coerceIn(-identity[ch], 1.0 - identity[ch])
+                }
             }
         }
+        return held
+    }
+
+    private fun dot(a: DoubleArray, b: DoubleArray): Double {
+        var s = 0.0
+        for (i in a.indices) s += a[i] * b[i]
+        return s
     }
 
     /** Adobe/Resolve .cube text — readable by Lightroom, Capture One, Darktable, Resolve. */
-    fun toCubeText(title: String): String = buildString {
+    fun toCubeText(title: String, grid: FloatArray = build()): String = buildString {
         appendLine("# Generated by Reshipi from an in-camera RAW conversion")
         appendLine("# Measured coverage: ${(coverage() * 100).toInt()}% of the colour cube")
         appendLine("TITLE \"${title.replace('"', '\'')}\"")
         appendLine("LUT_3D_SIZE $size")
         appendLine("DOMAIN_MIN 0.0 0.0 0.0")
         appendLine("DOMAIN_MAX 1.0 1.0 1.0")
-        val grid = build()
-        for (i in 0 until cells) {
+        for (i in 0 until nodes) {
             appendLine(
                 "%.6f %.6f %.6f".format(
                     java.util.Locale.US, grid[i * 3], grid[i * 3 + 1], grid[i * 3 + 2],
@@ -267,14 +395,26 @@ class CubeLut(val size: Int = 33) {
     }
 
     private companion object {
-        /** A step this large between adjacent nodes shows up as a break in the image. */
-        const val HARD_STEP = 0.15f
+        /** 36 weight products plus 8 corners of 3 channels. */
+        const val BLOCK = 36 + 24
 
-        /** Share of the average cell's evidence below which a cell is left to the fill. */
-        const val THIN_CELL = 0.02
+        /** Share of the average node's evidence below which it is not a measurement. */
+        const val THIN_NODE = 0.02
 
-        /** The +1 neighbour on each axis: every adjacent pair, counted once. */
-        val FORWARD = listOf(Triple(1, 0, 0), Triple(0, 1, 0), Triple(0, 0, 1))
+        /** How hard neighbouring nodes are held together, relative to the data. */
+        const val SMOOTH = 0.05
+
+        /** How hard an unmeasured node is pulled back to leaving the colour alone. */
+        const val PULL = 0.002
+
+        const val MAX_STEPS = 120
+        const val TOLERANCE = 1e-8
+
+        /** Projected sweeps run after the solve to settle the bounds. */
+        const val SWEEPS = 12
+
+        /** Over-relaxation for those sweeps; under 2 to converge at all. */
+        const val RELAX = 1.6
 
         val NEIGHBOURS = listOf(
             Triple(-1, 0, 0), Triple(1, 0, 0),
