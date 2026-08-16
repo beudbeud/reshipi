@@ -42,7 +42,14 @@ object FujiStyleCard {
         "Priorit[ée]\\s+(?:de\\s+)?(?:la\\s+)?(?:gamme|plage)\\s+dynamique" to "DR Priority",
         "(?:Gamme|Plage)\\s+dynamique" to "Dynamic Range",
         "R[ée]duction\\s+du\\s+bruit" to "Noise Reduction",
-        "Compensation\\s+d['’]exposition" to "Exposure Compensation",
+        // The app writes "Correction"; other sources write "Compensation"
+        "(?:Compensation|Correction)\\s+d['’]exposition" to "Exposure Compensation",
+        // Fuji leaves "Color Chrome" in English even in French, so only the
+        // surrounding words move — and the blue variant comes first, being the
+        // longer key. Without these, sharing a recipe in French and importing it
+        // back lost both effects.
+        "Colou?r\\s+Chrome\\s+FX\\s+Bleu" to "Color Chrome FX Blue",
+        "Effet\\s+Colou?r\\s+Chrome" to "Color Chrome Effect",
         "Balance\\s+des\\s+blancs" to "White Balance",
         "Effet\\s+de\\s+grain" to "Grain Effect",
         "Taille\\s+d[eu]\\s*(?:la\\s+)?grain" to "Grain Size",

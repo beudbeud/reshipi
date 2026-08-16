@@ -233,6 +233,14 @@ fun LutExportDialog(recipe: Recipe, onDismiss: () -> Unit) {
                         // the honest thing to send, not as a fix for anything.
                         val forLut = recipe.copy(
                             grainEffect = Strength.OFF,
+                            // Clarity is local contrast: what it does to a pixel
+                            // depends on that pixel's surroundings, so the same
+                            // input colour comes out differently in different
+                            // parts of the frame. A cube maps colour to colour and
+                            // has nowhere to put that. Grain was already dropped
+                            // for exactly this reason and clarity was not, though
+                            // the dialog has always said neither can be captured.
+                            clarity = 0,
                             dynamicRange = if (recipe.dynamicRange == DynamicRange.AUTO) {
                                 DynamicRange.DR100
                             } else {

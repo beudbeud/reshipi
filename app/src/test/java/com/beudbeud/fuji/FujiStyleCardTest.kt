@@ -416,6 +416,55 @@ class FujiStyleCardTest {
         assertEquals(-2, r.clarity)
     }
 
+    /**
+     * The app's own French share text, verbatim. Sharing a recipe and importing
+     * it back has to return the same recipe — three of these labels went
+     * unrecognised, so Color Chrome, its blue variant and the exposure
+     * compensation silently came back at their defaults.
+     */
+    @Test
+    fun frenchShareTextSurvivesARoundTrip() {
+        val r = FujiStyleCard.parse(
+            """
+            cinestill 800T v2
+            Boîtier: X-Trans V
+            Simulation de film: Classic Chrome
+            Balance des blancs: Kelvin 6600K R-1 B-3
+            Plage dynamique: DR400
+            Priorité plage dynamique: Désactivé
+            Hautes lumières: -2
+            Ombres: -0.5
+            Couleur: +3
+            Netteté: -2
+            Réduction du bruit: -4
+            Effet de grain: Fort · Grand
+            Effet Color Chrome: Fort
+            Color Chrome FX Bleu: Désactivé
+            Clarté: +3
+            ISO: 1000
+            Correction d'exposition: -1
+            """.trimIndent()
+        )!!
+        assertEquals(FilmSimulation.CLASSIC_CHROME, r.filmSimulation)
+        assertEquals(WhiteBalance.KELVIN, r.whiteBalance)
+        assertEquals(6600, r.kelvin)
+        assertEquals(-1, r.wbShiftRed)
+        assertEquals(-3, r.wbShiftBlue)
+        assertEquals(DynamicRange.DR400, r.dynamicRange)
+        assertEquals(-2.0, r.highlight, 0.0)
+        assertEquals(-0.5, r.shadow, 0.0)
+        assertEquals(3, r.color)
+        assertEquals(-2, r.sharpness)
+        assertEquals(-4, r.noiseReduction)
+        assertEquals(Strength.STRONG, r.grainEffect)
+        assertEquals(GrainSize.LARGE, r.grainSize)
+        assertEquals(Strength.STRONG, r.colorChromeEffect)
+        assertEquals(Strength.OFF, r.colorChromeFxBlue)
+        assertEquals(3, r.clarity)
+        assertEquals("1000", r.iso)
+        assertEquals("-1", r.exposureCompensation)
+    }
+
     @Test
     fun rejectsTextWithoutFilmSimulation() {
         assertNull(FujiStyleCard.parse("random text with no recipe"))
