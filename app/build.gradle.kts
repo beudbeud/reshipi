@@ -25,8 +25,8 @@ android {
         targetSdk = 35
         // ponytail: versionCode keeps climbing across the 1.0.0 reset —
         // Android refuses downgrades, resetting it would force a reinstall.
-        versionCode = 62
-        versionName = "1.0.0"
+        versionCode = 63
+        versionName = "1.1.0"
     }
 
     signingConfigs {
