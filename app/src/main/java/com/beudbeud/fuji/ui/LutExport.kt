@@ -157,6 +157,8 @@ fun LutExportDialog(recipe: Recipe, onDismiss: () -> Unit) {
                             if (!SyntheticRaf.chart(raf)) {
                                 throw java.io.IOException(context.getString(R.string.raf_compressed))
                             }
+                        } else {
+                            DebugLog.log("no chart: measuring from the photograph itself")
                         }
 
                         // Provia with every adjustment at rest — the "before" a LUT
@@ -374,6 +376,11 @@ private fun measure(beforeJpeg: ByteArray, afterJpeg: ByteArray): Measured {
     val pixAfter = IntArray(w * STRIP_ROWS)
     var sampled = 0L
     var changed = 0L
+    // How many of the 256 output levels the neutral render actually produces, per
+    // channel. The chart sweeps 33 raw levels per axis; if far fewer come out the
+    // other side, the sweep is collapsing before it reaches the cube, and no
+    // amount of clean sampling can cover cells the camera never renders.
+    val seen = Array(3) { BooleanArray(256) }
 
     var top = 0
     while (top < h) {
@@ -409,6 +416,9 @@ private fun measure(beforeJpeg: ByteArray, afterJpeg: ByteArray): Measured {
                 val dg = (d shr 8) and 0xFF
                 val db = d and 0xFF
                 lut.accumulate(sr, sg, sb, dr, dg, db)
+                seen[0][sr] = true
+                seen[1][sg] = true
+                seen[2][sb] = true
                 sampled++
                 if (kotlin.math.abs(dr - sr) > CHANGE_TOLERANCE ||
                     kotlin.math.abs(dg - sg) > CHANGE_TOLERANCE ||
@@ -420,6 +430,10 @@ private fun measure(beforeJpeg: ByteArray, afterJpeg: ByteArray): Measured {
     }
     decBefore.recycle()
     decAfter.recycle()
+    DebugLog.log(
+        "measured ${w}x$h, distinct neutral levels R=${seen[0].count { it }} " +
+            "G=${seen[1].count { it }} B=${seen[2].count { it }} of 256"
+    )
     return Measured(lut, sampled, changed)
 }
 

@@ -116,6 +116,18 @@ object SyntheticRaf {
         val site = Array(6) { y -> IntArray(6) { x -> layout.pattern[((y + PHASE) % 6) * 6 + (x + PHASE) % 6].toInt() } }
         val combinations = steps * steps * steps
         val rgb = IntArray(3)
+        // Says plainly that a chart was painted, and on what geometry — otherwise
+        // nothing downstream distinguishes a chart export from a photograph one.
+        // Also names the truncation rather than letting it pass silently: with
+        // fewer patches than colours the sweep never reaches the last ones.
+        DebugLog.log(
+            "chart: ${cols}x$rows patches of ${patchPx}px, $combinations colours" +
+                if (cols * rows < combinations) {
+                    " — TRUNCATED, only ${cols * rows} fit"
+                } else {
+                    ""
+                }
+        )
 
         var patch = 0
         for (patchRow in 0 until rows) {

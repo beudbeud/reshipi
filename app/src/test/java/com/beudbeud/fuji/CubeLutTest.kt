@@ -77,6 +77,34 @@ class CubeLutTest {
         assertTrue(grid.all { it in 0f..1f })
     }
 
+    /**
+     * Two measured greys far apart, everything between them invented. A fill that
+     * freezes each cell on whichever front reaches it first makes the two regions
+     * meet in a cliff; a real export came back with a grey ramp that dipped and
+     * then jumped by a third of its range between adjacent nodes.
+     */
+    @Test
+    fun inventedCellsAreSmoothedInsteadOfMeetingInACliff() {
+        val size = 9
+        val lut = CubeLut(size)
+        lut.accumulate(64, 64, 64, 51, 51, 51)
+        lut.accumulate(192, 192, 192, 204, 204, 204)
+        val grid = lut.build()
+        val ramp = (0 until size).map { grid[(((it * size) + it) * size + it) * 3] }
+
+        // Between the two measurements — nodes 2 and 6 — the fill is an
+        // interpolation and has to rise with the data. Beyond them it is an
+        // extrapolation with nothing to go on, so nothing is promised there.
+        ramp.subList(2, 7).zipWithNext().forEach { (a, b) ->
+            assertTrue("the grey ramp dips between measurements: $ramp", b >= a - 0.01f)
+        }
+        // No pair of adjacent nodes may swallow a third of the range: that is the
+        // cliff where two dilation fronts used to meet.
+        val step = ramp.zipWithNext().maxOf { (a, b) -> b - a }
+        assertTrue("one step swallows the range ($step): $ramp", step < 0.30f)
+        assertTrue(grid.all { it in 0f..1f })
+    }
+
     @Test
     fun cubeTextIsWellFormed() {
         val text = saturated(3).toCubeText("Kodachrome \"64\"")
