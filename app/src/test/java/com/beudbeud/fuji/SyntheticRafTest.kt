@@ -127,4 +127,35 @@ class SyntheticRafTest {
         assertEquals(listOf(0, 0, 16383, 16383, 0, 0), greens)
         assertNotNull(SyntheticRaf.layout(raf))
     }
+
+    /**
+     * A patch only renders grey when its raw channels cancel the camera's own
+     * channel gains — red near half the green, blue near two thirds. The cube
+     * sweep hits that ratio by accident at best: a real export measured 7 of the
+     * 33 cells on the neutral axis. The fan exists so some probe lands on it
+     * without anyone having to know the gains.
+     */
+    @Test
+    fun theNeutralFanBracketsTheRatioThatRendersGrey() {
+        val level = IntArray(33) { (16383.0 * (it / 32.0) * (it / 32.0)).toInt() }
+        val rgb = IntArray(3)
+        val probes = 33 * 11 * 11
+
+        // Every brightness is walked, not just a few
+        val greens = (0 until probes).map {
+            SyntheticRaf.neutralProbe(it, level, rgb); rgb[1]
+        }.toSet()
+        assertEquals(level.toSet().size, greens.size)
+
+        // ...and at full brightness some probe sits within a step of the ratio a
+        // typical camera needs, on both axes at once.
+        val bright = level.last().toDouble()
+        val close = (0 until probes).count {
+            SyntheticRaf.neutralProbe(it, level, rgb)
+            rgb[1] == level.last() &&
+                kotlin.math.abs(rgb[0] / bright - 0.50) < 0.03 &&
+                kotlin.math.abs(rgb[2] / bright - 0.67) < 0.03
+        }
+        assertTrue("no probe brackets the neutral ratio", close > 0)
+    }
 }

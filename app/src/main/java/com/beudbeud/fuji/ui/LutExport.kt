@@ -33,6 +33,7 @@ import com.beudbeud.fuji.data.RafFile
 import com.beudbeud.fuji.data.SyntheticRaf
 import com.beudbeud.fuji.data.ptp.FujiProp
 import com.beudbeud.fuji.data.ptp.patchProfile
+import com.beudbeud.fuji.data.ptp.profileDump
 import com.beudbeud.fuji.model.CAMERA_MODELS
 import com.beudbeud.fuji.model.DynamicRange
 import com.beudbeud.fuji.model.FilmSimulation
@@ -174,6 +175,14 @@ fun LutExportDialog(recipe: Recipe, onDismiss: () -> Unit) {
                         // it cannot be baked into a LUT, and leaving it to the profile
                         // would make the result depend on whether the second pass
                         // reused the loaded RAF or re-sent it.
+                        // White balance is matched to the reference rather than
+                        // sent: the profile cannot carry the mode, so the R/B
+                        // shifts tuned to sit on top of that mode would be half of
+                        // a coupled pair. On an X-T30 III this changes nothing —
+                        // converting the same chart with the shifts at -6/-4 and
+                        // at 0/0 gave identical output — because in-camera
+                        // conversion ignores white balance outright. It stays as
+                        // the honest thing to send, not as a fix for anything.
                         val forLut = recipe.copy(
                             grainEffect = Strength.OFF,
                             dynamicRange = if (recipe.dynamicRange == DynamicRange.AUTO) {
@@ -181,6 +190,10 @@ fun LutExportDialog(recipe: Recipe, onDismiss: () -> Unit) {
                             } else {
                                 recipe.dynamicRange
                             },
+                            whiteBalance = neutral.whiteBalance,
+                            kelvin = null,
+                            wbShiftRed = 0,
+                            wbShiftBlue = 0,
                         )
 
                         status = context.getString(R.string.lut_rendering_base)
@@ -342,7 +355,11 @@ private fun develop(
     upload: Boolean,
 ): ByteArray {
     if (upload) camera.sendRaf(raf)
-    camera.setProfile(recipe.patchProfile(camera.getProfile(quiet = true)))
+    val patched = recipe.patchProfile(camera.getProfile(quiet = true))
+    // Both passes' profiles side by side: the difference between them is the
+    // whole of what the LUT can possibly measure.
+    DebugLog.log("patchProfile out (${recipe.filmSimulation.label}): ${profileDump(patched)}")
+    camera.setProfile(patched)
     camera.triggerConversion()
     return camera.waitForResult()
 }

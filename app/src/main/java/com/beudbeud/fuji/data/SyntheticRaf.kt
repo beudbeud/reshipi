@@ -115,6 +115,8 @@ object SyntheticRaf {
         }
         val site = Array(6) { y -> IntArray(6) { x -> layout.pattern[((y + PHASE) % 6) * 6 + (x + PHASE) % 6].toInt() } }
         val combinations = steps * steps * steps
+        val neutrals = steps * GAINS * GAINS
+        val spare = cols * rows - combinations
         val rgb = IntArray(3)
         // Says plainly that a chart was painted, and on what geometry — otherwise
         // nothing downstream distinguishes a chart export from a photograph one.
@@ -122,22 +124,23 @@ object SyntheticRaf {
         // fewer patches than colours the sweep never reaches the last ones.
         DebugLog.log(
             "chart: ${cols}x$rows patches of ${patchPx}px, $combinations colours" +
-                if (cols * rows < combinations) {
-                    " — TRUNCATED, only ${cols * rows} fit"
-                } else {
-                    ""
+                when {
+                    spare < 0 -> " — TRUNCATED, only ${cols * rows} fit"
+                    else -> ", ${minOf(spare, neutrals)} of $neutrals neutral probes"
                 }
         )
 
         var patch = 0
         for (patchRow in 0 until rows) {
             for (patchCol in 0 until cols) {
-                // More patches than colours: the sweep simply repeats, which
-                // costs nothing and keeps every patch a valid measurement.
-                val n = patch++ % combinations
-                rgb[0] = level[n % steps]
-                rgb[1] = level[(n / steps) % steps]
-                rgb[2] = level[n / (steps * steps)]
+                val n = patch++
+                if (n < combinations) {
+                    rgb[0] = level[n % steps]
+                    rgb[1] = level[(n / steps) % steps]
+                    rgb[2] = level[n / (steps * steps)]
+                } else {
+                    neutralProbe((n - combinations) % neutrals, level, rgb)
+                }
                 for (dy in 0 until patchPx) {
                     val y = patchRow * patchPx + dy
                     val row = site[y % 6]
@@ -152,5 +155,38 @@ object SyntheticRaf {
             }
         }
         return true
+    }
+
+    /** Ratios either side of what a camera's own channel gains need. */
+    private const val GAINS = 11
+    private const val RED_MIN = 0.35
+    private const val RED_MAX = 0.85
+    private const val BLUE_MIN = 0.45
+    private const val BLUE_MAX = 0.95
+
+    /**
+     * Fills [rgb] with probe number [n] of the neutral fan.
+     *
+     * The cube sweep almost never produces a grey. A patch only renders neutral
+     * when its raw channels sit in the ratio that cancels the camera's own gains,
+     * roughly red at half the green and blue at two thirds of it, and a grid of
+     * whole levels lands on that ratio by accident at best: a real export
+     * measured 7 of the 33 cells on the neutral axis and interpolated the other
+     * 26 from coloured neighbours, which is why greys came out green.
+     *
+     * So the patches the sweep does not need are spent walking a fan of ratios
+     * around that neutral direction at every brightness. The gains do not have to
+     * be known — the fan is wide enough that some probe in it lands neutral, and
+     * that probe is the one the grey axis gets measured from.
+     */
+    internal fun neutralProbe(n: Int, level: IntArray, rgb: IntArray) {
+        val steps = level.size
+        val green = level[n % steps]
+        val redStep = (n / steps) % GAINS
+        val blueStep = n / (steps * GAINS)
+        fun ratio(min: Double, max: Double, i: Int) = min + (max - min) * i / (GAINS - 1)
+        rgb[0] = (green * ratio(RED_MIN, RED_MAX, redStep)).roundToInt().coerceIn(0, MAX)
+        rgb[1] = green
+        rgb[2] = (green * ratio(BLUE_MIN, BLUE_MAX, blueStep)).roundToInt().coerceIn(0, MAX)
     }
 }

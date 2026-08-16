@@ -117,7 +117,16 @@ class CubeLut(val size: Int = 33) {
             measured[i] = true
             for (c in 0..2) out[i * 3 + c] = (sum[i * 3 + c] / weight[i]).toFloat()
         }
-        DebugLog.log("lut cells: $touched touched, $thin too thin to trust, ${touched - thin} kept")
+        // The neutral axis is the one that matters most and the one a chart is
+        // least likely to hit: sweeping raw values uniformly rarely lands on the
+        // ratio that renders grey, because the camera's own channel gains are far
+        // from equal. If these cells are not measured they are interpolated from
+        // coloured neighbours, and greys inherit whatever those lean towards.
+        val grey = (0 until size).count { weight[index(it, it, it)] >= floor }
+        DebugLog.log(
+            "lut cells: $touched touched, $thin too thin to trust, ${touched - thin} kept, " +
+                "grey axis $grey/$size measured"
+        )
         // Dilate into the empty cells until the cube is full or nothing spreads.
         // `repeat` cannot break, so the loop is explicit: the old return@repeat
         // read as a stop but only skipped a round, rescanning the whole cube for

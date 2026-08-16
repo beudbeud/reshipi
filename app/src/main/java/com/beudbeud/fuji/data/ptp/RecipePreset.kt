@@ -231,7 +231,14 @@ fun Recipe.patchProfile(base: ByteArray): ByteArray {
     // Index 12 is the white balance mode, and the camera clamps it to 0 whatever
     // we write — probed with every ordinal 0-12 and every 0x800X code on an
     // X-T30 III, only 0 survives. RAW conversion keeps the shot's own white
-    // balance; the R/B shifts below (13/14) are applied on top and do stick.
+    // balance.
+    //
+    // The R/B shifts below survive a read back, which is not the same as being
+    // honoured: converting one chart twice, once with 13/14 at -6/-4 and once at
+    // 0/0, returned JPEGs of identical size and a LUT identical to three decimal
+    // places. In-camera conversion appears to ignore white balance entirely.
+    // They are still written, since storing them costs nothing and a body that
+    // does honour them wants them.
     if (whiteBalance == WhiteBalance.KELVIN && kelvin != null) set(15, kelvin)
     set(13, wbShiftRed)
     set(14, wbShiftBlue)
