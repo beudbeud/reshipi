@@ -61,8 +61,56 @@ private const val FLAT_TOLERANCE = 6
 /** Per-channel difference above which a pixel counts as actually changed. */
 private const val CHANGE_TOLERANCE = 2
 
+/** One sample pair in every this many is kept back to audit the finished cube. */
+private const val AUDIT_STRIDE = 400
+
 /** What a pass over the two renders found. */
-private class Measured(val lut: CubeLut, val sampled: Long, val changed: Long)
+private class Measured(
+    val lut: CubeLut,
+    val sampled: Long,
+    val changed: Long,
+    /** Packed before/after pairs the cube never saw fitted to it. */
+    val auditSrc: IntArray,
+    val auditDst: IntArray,
+)
+
+/**
+ * Mean error, per channel, between what the cube predicts for each audited
+ * input and what the camera actually produced for it.
+ *
+ * Everything else measured here describes the cube's shape; this asks the only
+ * question that matters — whether it reproduces the very data it was built
+ * from. A large error means the fault is in this file, not in the camera.
+ */
+private fun auditError(grid: FloatArray, size: Int, src: IntArray, dst: IntArray): IntArray {
+    if (src.isEmpty()) return IntArray(3)
+    val total = LongArray(3)
+    val out = FloatArray(3)
+    for (n in src.indices) {
+        val s = src[n]
+        val f = floatArrayOf(
+            ((s shr 16) and 0xFF) * (size - 1) / 255f,
+            ((s shr 8) and 0xFF) * (size - 1) / 255f,
+            (s and 0xFF) * (size - 1) / 255f,
+        )
+        val i0 = IntArray(3) { f[it].toInt().coerceIn(0, size - 2) }
+        val t = FloatArray(3) { f[it] - i0[it] }
+        out[0] = 0f; out[1] = 0f; out[2] = 0f
+        for (dr in 0..1) for (dg in 0..1) for (db in 0..1) {
+            val w = (if (dr == 1) t[0] else 1 - t[0]) *
+                (if (dg == 1) t[1] else 1 - t[1]) *
+                (if (db == 1) t[2] else 1 - t[2])
+            if (w <= 0f) continue
+            val c = (((i0[2] + db) * size) + i0[1] + dg) * size + i0[0] + dr
+            for (k in 0..2) out[k] += w * grid[c * 3 + k]
+        }
+        val d = dst[n]
+        total[0] += kotlin.math.abs((out[0] * 255).toInt() - ((d shr 16) and 0xFF))
+        total[1] += kotlin.math.abs((out[1] * 255).toInt() - ((d shr 8) and 0xFF))
+        total[2] += kotlin.math.abs((out[2] * 255).toInt() - (d and 0xFF))
+    }
+    return IntArray(3) { (total[it] / src.size).toInt() }
+}
 
 /**
  * Exports the recipe as a .cube 3D LUT, measured from the camera itself.
@@ -214,6 +262,13 @@ fun LutExportDialog(recipe: Recipe, onDismiss: () -> Unit) {
                             measure(beforeJpeg, afterJpeg)
                         }
                         val lut = measured.lut
+                        val err = withContext(Dispatchers.Default) {
+                            auditError(lut.build(), lut.size, measured.auditSrc, measured.auditDst)
+                        }
+                        DebugLog.log(
+                            "lut audit on ${measured.auditSrc.size} held-back pairs: " +
+                                "mean error R${err[0]} G${err[1]} B${err[2]} of 255"
+                        )
                         coverage = lut.coverage()
                         DebugLog.log(
                             "LUT built: ${(coverage * 100).toInt()}% coverage, " +
@@ -357,8 +412,14 @@ private fun develop(
     if (upload) camera.sendRaf(raf)
     val patched = recipe.patchProfile(camera.getProfile(quiet = true))
     // Both passes' profiles side by side: the difference between them is the
-    // whole of what the LUT can possibly measure.
-    DebugLog.log("patchProfile out (${recipe.filmSimulation.label}): ${profileDump(patched)}")
+    // whole of what the LUT can possibly measure. Named by the recipe, not by
+    // its film simulation — every recipe built on Eterna used to log "Eterna",
+    // which hid that an export was running on a different recipe than the one
+    // being read off the screen.
+    DebugLog.log(
+        "patchProfile out [${recipe.name.ifBlank { "neutral" }} / " +
+            "${recipe.filmSimulation.label}]: ${profileDump(patched)}"
+    )
     camera.setProfile(patched)
     camera.triggerConversion()
     return camera.waitForResult()
@@ -398,6 +459,10 @@ private fun measure(beforeJpeg: ByteArray, afterJpeg: ByteArray): Measured {
     // other side, the sweep is collapsing before it reaches the cube, and no
     // amount of clean sampling can cover cells the camera never renders.
     val seen = Array(3) { BooleanArray(256) }
+    val meanBefore = LongArray(3)
+    val meanAfter = LongArray(3)
+    val auditSrc = ArrayList<Int>()
+    val auditDst = ArrayList<Int>()
 
     var top = 0
     while (top < h) {
@@ -436,6 +501,16 @@ private fun measure(beforeJpeg: ByteArray, afterJpeg: ByteArray): Measured {
                 seen[0][sr] = true
                 seen[1][sg] = true
                 seen[2][sb] = true
+                // The two renders' own colour balance, before the cube touches
+                // them. If the recipe render is already far greener than the
+                // neutral one, the camera made it so and the cube is only
+                // reporting it; if the two are level, the fault is downstream.
+                meanBefore[0] += sr; meanBefore[1] += sg; meanBefore[2] += sb
+                meanAfter[0] += dr; meanAfter[1] += dg; meanAfter[2] += db
+                if (sampled % AUDIT_STRIDE == 0L) {
+                    auditSrc.add(s and 0xFFFFFF)
+                    auditDst.add(d and 0xFFFFFF)
+                }
                 sampled++
                 if (kotlin.math.abs(dr - sr) > CHANGE_TOLERANCE ||
                     kotlin.math.abs(dg - sg) > CHANGE_TOLERANCE ||
@@ -451,7 +526,11 @@ private fun measure(beforeJpeg: ByteArray, afterJpeg: ByteArray): Measured {
         "measured ${w}x$h, distinct neutral levels R=${seen[0].count { it }} " +
             "G=${seen[1].count { it }} B=${seen[2].count { it }} of 256"
     )
-    return Measured(lut, sampled, changed)
+    if (sampled > 0) {
+        fun mean(v: LongArray) = "R${v[0] / sampled} G${v[1] / sampled} B${v[2] / sampled}"
+        DebugLog.log("render means: neutral ${mean(meanBefore)} | recipe ${mean(meanAfter)}")
+    }
+    return Measured(lut, sampled, changed, auditSrc.toIntArray(), auditDst.toIntArray())
 }
 
 /** True when [other] is close enough to be the same flat colour. */
