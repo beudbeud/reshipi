@@ -210,11 +210,31 @@ fun LutExportDialog(recipe: Recipe, onDismiss: () -> Unit) {
                             DebugLog.log("no chart: measuring from the photograph itself")
                         }
 
+                        // Both passes share one dynamic range, the recipe's, so the
+                        // only thing left between them is colour.
+                        //
+                        // Dynamic range is a tone curve, and a tone curve does not
+                        // lift every channel by the same amount — it lifts hardest
+                        // wherever the signal sits lowest. In-camera RAW conversion
+                        // ignores white balance, so the reference render is not
+                        // neutral to begin with (measured R141 G128 B145 on an
+                        // X-T30 III, green lowest). Render it at DR100 against a
+                        // recipe at DR400 and the curve lifts that low green
+                        // hardest, turning an imbalance into a cast: greys came out
+                        // with a third of the range of green on them, black and
+                        // white staying clean because a curve is pinned at both
+                        // ends. The dynamic range itself is what a LUT gives up
+                        // here; a raw developer has its own controls for it.
+                        val range = if (recipe.dynamicRange == DynamicRange.AUTO) {
+                            DynamicRange.DR100
+                        } else {
+                            recipe.dynamicRange
+                        }
                         // Provia with every adjustment at rest — the "before" a LUT
                         // is meant to be applied on top of.
                         val neutral = Recipe(
                             filmSimulation = FilmSimulation.PROVIA,
-                            dynamicRange = DynamicRange.DR100,
+                            dynamicRange = range,
                         )
                         // Grain is spatial: a LUT cannot carry it, so leaving it on
                         // only scatters every patch's pixels around its true colour.
@@ -241,11 +261,7 @@ fun LutExportDialog(recipe: Recipe, onDismiss: () -> Unit) {
                             // for exactly this reason and clarity was not, though
                             // the dialog has always said neither can be captured.
                             clarity = 0,
-                            dynamicRange = if (recipe.dynamicRange == DynamicRange.AUTO) {
-                                DynamicRange.DR100
-                            } else {
-                                recipe.dynamicRange
-                            },
+                            dynamicRange = range,
                             whiteBalance = neutral.whiteBalance,
                             kelvin = null,
                             wbShiftRed = 0,
