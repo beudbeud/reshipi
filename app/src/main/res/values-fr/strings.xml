@@ -62,6 +62,7 @@
     <string name="share">Partager</string>
     <string name="share_text">Partager en texte</string>
     <string name="share_qr">Partager par QR code</string>
+    <string name="qr_too_long">Cette recette est trop longue pour un QR code — raccourcissez les notes, ou partagez-la sous forme de fichier.</string>
     <string name="scan_qr">Scanner un QR code</string>
     <string name="send_to_camera">Envoyer vers le boîtier</string>
     <string name="camera_slot">Slot de preset (C1–C7)</string>
@@ -160,12 +161,14 @@
     <string name="raf_no_donor">Aucune enveloppe RAF disponible — choisis un RAF non compressé de ce boîtier.</string>
     <string name="lut_hint_chart_ready">La mire est écrite dans une enveloppe RAF que l\'app possède déjà — rien à choisir.</string>
     <string name="lut_hint_chart_needs_donor">Ce boîtier a besoin d\'un RAF non compressé qui lui appartienne pour porter la mire. Choisis-en un, une seule fois — seule son enveloppe est conservée.</string>
+    <string name="lut_forget_donor">Utiliser une autre enveloppe RAF</string>
     <string name="lut_painting_chart">Écriture de la mire dans le RAF…</string>
     <string name="raf_compressed">Ce RAF est compressé. Règle le boîtier sur RAW non compressé et prends une photo qui servira de porteur pour la mire.</string>
     <string name="lut_rendering_base">Développement du rendu neutre…</string>
     <string name="lut_rendering_recipe">Développement avec la recette…</string>
     <string name="lut_building">Construction de la LUT…</string>
     <string name="lut_coverage">%1$d%% du cube de couleurs mesuré</string>
+    <string name="lut_no_change">Les deux rendus sont presque identiques — l\'appareil semble avoir ignoré cette recette, le LUT ne changerait donc quasiment rien.</string>
     <string name="lut_caveat">Les couleurs absentes de l\'image sont interpolées. Une photo variée et colorée donne une meilleure LUT. Clarté et grain sont des effets spatiaux, non représentables dans une LUT.</string>
     <string name="lut_save">Enregistrer le .cube</string>
     <string name="lut_gen_unsupported">La création de LUT n\'est pas encore compatible avec le %1$s — seuls les boîtiers X-Trans V (X-T30 III, X-T5, X100VI…) sont pris en charge pour l\'instant.</string>

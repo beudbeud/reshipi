@@ -79,7 +79,9 @@ import com.beudbeud.fuji.model.cameraLabel
 import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions
 import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.time.LocalDate
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -114,10 +116,14 @@ fun ListScreen(
         ActivityResultContracts.CreateDocument("application/zip")
     ) { uri ->
         if (uri != null) {
-            val ok = runCatching {
-                context.contentResolver.openOutputStream(uri)!!.use { repo.exportZip(it) }
-            }.isSuccess
+            // A backup carries every photo in the library, so it is never "small
+            // enough" to write from the launcher callback's own thread.
             scope.launch {
+                val ok = withContext(Dispatchers.IO) {
+                    runCatching {
+                        context.contentResolver.openOutputStream(uri)!!.use { repo.exportZip(it) }
+                    }.isSuccess
+                }
                 snackbar.showSnackbar(context.getString(if (ok) R.string.export_done else R.string.export_failed))
             }
         }
@@ -126,16 +132,18 @@ fun ListScreen(
         ActivityResultContracts.OpenDocument()
     ) { uri ->
         if (uri != null) {
-            val result = runCatching {
-                val bytes = context.contentResolver.openInputStream(uri)!!.use { it.readBytes() }
-                // Accept both the ZIP backup and plain JSON exports from older versions
-                if (bytes.size > 4 && bytes[0] == 'P'.code.toByte() && bytes[1] == 'K'.code.toByte()) {
-                    repo.importZip(bytes.inputStream())
-                } else {
-                    repo.importJson(bytes.decodeToString())
-                }
-            }
             scope.launch {
+                val result = withContext(Dispatchers.IO) {
+                    runCatching {
+                        val bytes = context.contentResolver.openInputStream(uri)!!.use { it.readBytes() }
+                        // Accept both the ZIP backup and plain JSON exports from older versions
+                        if (bytes.size > 4 && bytes[0] == 'P'.code.toByte() && bytes[1] == 'K'.code.toByte()) {
+                            repo.importZip(bytes.inputStream())
+                        } else {
+                            repo.importJson(bytes.decodeToString())
+                        }
+                    }
+                }
                 snackbar.showSnackbar(
                     message = result.fold(
                         onSuccess = { importMessage(context, it) },
@@ -151,12 +159,10 @@ fun ListScreen(
         ActivityResultContracts.PickVisualMedia()
     ) { uri ->
         if (uri != null) {
-            importRecipeImage(context, repo, uri) { recipe ->
-                if (recipe == null) {
-                    scope.launch { snackbar.showSnackbar(context.getString(R.string.photo_no_recipe)) }
-                } else {
-                    onCreateFromPhoto(recipe)
-                }
+            scope.launch {
+                val recipe = importRecipeImage(context, repo, uri)
+                if (recipe == null) snackbar.showSnackbar(context.getString(R.string.photo_no_recipe))
+                else onCreateFromPhoto(recipe)
             }
         }
     }

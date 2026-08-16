@@ -53,6 +53,30 @@ class CubeLutTest {
         assertEquals(0f, grid[2], 0.001f)
     }
 
+    /**
+     * Two samples that snap to the same grid node but sit at different places
+     * inside it, with opposite destinations. Rounding each to its nearest node
+     * would lump them into one cell and average them to mid grey, leaving the
+     * next node unmeasured; spreading them by distance has to keep the one
+     * nearer the upper node pulling that node up.
+     */
+    @Test
+    fun subCellPositionSurvivesInsteadOfBeingAveragedAway() {
+        val size = 9
+        val lut = CubeLut(size)
+        // Both quantize to node 1 (nodes sit every 255/8 = 31.9 levels)
+        lut.accumulate(34, 34, 34, 0, 0, 0)
+        lut.accumulate(46, 46, 46, 255, 255, 255)
+        val grid = lut.build()
+        fun node(k: Int) = grid[(((k * size) + k) * size + k) * 3]
+
+        // Nearest-node binning would put both here and answer 0.5
+        assertTrue("node 1 should lean dark, was ${node(1)}", node(1) < 0.35f)
+        // ...and would leave node 2 to be guessed by the dilation
+        assertTrue("node 2 should lean bright, was ${node(2)}", node(2) > 0.65f)
+        assertTrue(grid.all { it in 0f..1f })
+    }
+
     @Test
     fun cubeTextIsWellFormed() {
         val text = saturated(3).toCubeText("Kodachrome \"64\"")

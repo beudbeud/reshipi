@@ -15,8 +15,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import com.beudbeud.fuji.R
 import com.beudbeud.fuji.model.Recipe
 import com.beudbeud.fuji.model.RecipeExport
 import com.google.zxing.BarcodeFormat
@@ -28,19 +30,25 @@ import kotlinx.serialization.json.Json
 private val qrJson = Json { encodeDefaults = false }
 
 fun recipeQrContent(recipe: Recipe): String =
-    qrJson.encodeToString(RecipeExport.serializer(), RecipeExport(recipes = listOf(recipe)))
+    // Photo filenames are local names — the scanning device has no such files and
+    // importJson drops them on arrival. Sending them only eats QR capacity.
+    qrJson.encodeToString(
+        RecipeExport.serializer(),
+        RecipeExport(recipes = listOf(recipe.copy(photos = emptyList()))),
+    )
 
-private fun qrBitmap(content: String, size: Int = 512): Bitmap {
+/** Null when the recipe is past what a QR code can hold (long notes, mostly). */
+private fun qrBitmap(content: String, size: Int = 512): Bitmap? = runCatching {
     val matrix = QRCodeWriter().encode(
         content, BarcodeFormat.QR_CODE, size, size, mapOf(EncodeHintType.MARGIN to 1),
     )
     val pixels = IntArray(size * size) { i ->
         if (matrix[i % size, i / size]) Color.BLACK else Color.WHITE
     }
-    return Bitmap.createBitmap(size, size, Bitmap.Config.RGB_565).apply {
+    Bitmap.createBitmap(size, size, Bitmap.Config.RGB_565).apply {
         setPixels(pixels, 0, size, 0, 0, size, size)
     }
-}
+}.getOrNull()
 
 @Composable
 fun QrDialog(recipe: Recipe, onDismiss: () -> Unit) {
@@ -49,14 +57,22 @@ fun QrDialog(recipe: Recipe, onDismiss: () -> Unit) {
         // QR needs a white background in both themes
         Surface(shape = RoundedCornerShape(12.dp), color = androidx.compose.ui.graphics.Color.White) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Image(
-                    bitmap = bitmap.asImageBitmap(),
-                    contentDescription = recipe.name,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .aspectRatio(1f)
-                        .padding(16.dp),
-                )
+                if (bitmap == null) {
+                    Text(
+                        stringResource(R.string.qr_too_long),
+                        color = androidx.compose.ui.graphics.Color.Black,
+                        modifier = Modifier.padding(16.dp),
+                    )
+                } else {
+                    Image(
+                        bitmap = bitmap.asImageBitmap(),
+                        contentDescription = recipe.name,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .aspectRatio(1f)
+                            .padding(16.dp),
+                    )
+                }
                 Text(
                     recipe.name,
                     color = androidx.compose.ui.graphics.Color.Black,

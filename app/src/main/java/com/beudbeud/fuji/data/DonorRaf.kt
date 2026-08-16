@@ -65,12 +65,19 @@ object DonorRaf {
      * every RAF seen so far does. A body that appended a trailer would lose it.
      */
     internal fun padded(head: ByteArray): ByteArray {
-        fun u32(i: Int) = ((head[i].toInt() and 0xFF) shl 24) or
-            ((head[i + 1].toInt() and 0xFF) shl 16) or
-            ((head[i + 2].toInt() and 0xFF) shl 8) or (head[i + 3].toInt() and 0xFF)
+        fun u32(i: Int) = ((head[i].toLong() and 0xFF) shl 24) or
+            ((head[i + 1].toLong() and 0xFF) shl 16) or
+            ((head[i + 2].toLong() and 0xFF) shl 8) or (head[i + 3].toLong() and 0xFF)
+        // The size comes out of a file the user picked, so it is a claim, not a
+        // fact: honouring it unchecked turns a corrupt header into a 4GB
+        // allocation. Anything beyond a plausible RAF means this is not one.
         val total = u32(0x64) + u32(0x68)
-        return head.copyOf(maxOf(total, head.size))
+        if (total > MAX_RAF) return head
+        return head.copyOf(maxOf(total.toInt(), head.size))
     }
+
+    /** Largest uncompressed RAF we expect: 102MP at 16 bits is under this. */
+    private const val MAX_RAF = 256L shl 20
 
     /**
      * Drops the container a body has just refused. A kept one simply goes; when
@@ -79,5 +86,19 @@ object DonorRaf {
      */
     fun forget(context: Context) {
         if (!head(context).delete()) runCatching { rejected(context).writeBytes(ByteArray(0)) }
+    }
+
+    /**
+     * Forgets everything about containers, refusals included, so the next export
+     * starts from nothing.
+     *
+     * [forget] cannot do this: it records a refusal rather than clearing one, and
+     * a container is otherwise only ever replaced by a successful save. That
+     * leaves no way out of one that is kept but unusable — a write cut short on a
+     * full disk, say — because the export never gets far enough to reject it.
+     */
+    fun reset(context: Context) {
+        head(context).delete()
+        rejected(context).delete()
     }
 }

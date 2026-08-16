@@ -1,6 +1,7 @@
 package com.beudbeud.fuji.ui
 
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Column
@@ -37,16 +38,30 @@ import com.beudbeud.fuji.model.DynamicRange
 import com.beudbeud.fuji.model.FilmSimulation
 import com.beudbeud.fuji.model.Generation
 import com.beudbeud.fuji.model.Recipe
+import com.beudbeud.fuji.model.Strength
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
- * Long edge the two renders are decoded at. 2048 makes the decoder halve the
- * 6240px render instead of quartering it, so a 24px sensor patch still lands on
- * a 12px block and survives with a clean middle.
+ * Rows of the render decoded at a time. The two JPEGs are read at full
+ * resolution, a strip at a time, so a 24px sensor patch stays 24px wide instead
+ * of collapsing to 12 — the difference between a handful of clean pixels per
+ * patch and a couple of hundred. A strip of each render costs about 6MB.
  */
-private const val SAMPLE_DIM = 2048
+private const val STRIP_ROWS = 256
+
+/**
+ * How far a neighbouring pixel may differ, per channel, for a pixel to count as
+ * sitting inside a flat patch rather than on the seam between two.
+ */
+private const val FLAT_TOLERANCE = 6
+
+/** Per-channel difference above which a pixel counts as actually changed. */
+private const val CHANGE_TOLERANCE = 2
+
+/** What a pass over the two renders found. */
+private class Measured(val lut: CubeLut, val sampled: Long, val changed: Long)
 
 /**
  * Exports the recipe as a .cube 3D LUT, measured from the camera itself.
@@ -64,6 +79,7 @@ fun LutExportDialog(recipe: Recipe, onDismiss: () -> Unit) {
     var busy by remember { mutableStateOf(false) }
     var cube by remember { mutableStateOf<String?>(null) }
     var coverage by remember { mutableStateOf(0f) }
+    var warning by remember { mutableStateOf<String?>(null) }
     // Measured on an X-T30 III: a chart reaches 75% of the cube where the best
     // photograph reached 35% — so it is the default whenever it can run.
     var donorReady by remember { mutableStateOf(DonorRaf.exists(context)) }
@@ -73,18 +89,23 @@ fun LutExportDialog(recipe: Recipe, onDismiss: () -> Unit) {
         ActivityResultContracts.CreateDocument("application/octet-stream")
     ) { uri ->
         val text = cube
-        if (uri != null && text != null) {
-            runCatching {
-                context.contentResolver.openOutputStream(uri)!!.use { it.write(text.toByteArray()) }
+        // A 33³ cube is around a megabyte of text
+        if (uri != null && text != null) scope.launch {
+            withContext(Dispatchers.IO) {
+                runCatching {
+                    context.contentResolver.openOutputStream(uri)!!.use { it.write(text.toByteArray()) }
+                }
             }
             onDismiss()
         }
     }
 
-    // Either a file the user just picked, or the container kept from last time
-    val export = { source: suspend () -> ByteArray ->
+    // [keep] is for a file the user just picked; the container loaded from last
+    // time is already stored, and writing it back costs 5MB for nothing.
+    fun export(keep: Boolean, source: suspend () -> ByteArray) {
         busy = true
         cube = null
+        warning = null
         scope.launch {
             runCatching {
                 val raf = withContext(Dispatchers.IO) { source() }
@@ -92,7 +113,7 @@ fun LutExportDialog(recipe: Recipe, onDismiss: () -> Unit) {
                 // chart. Waiting for the conversion to succeed made the cache
                 // depend on the camera being plugged in and on the recipe
                 // rendering, neither of which says anything about the file.
-                if (DonorRaf.save(context, raf)) {
+                if (keep && withContext(Dispatchers.IO) { DonorRaf.save(context, raf) }) {
                     donorReady = true
                     DebugLog.log("donor kept: ${RafFile.cameraModel(raf)}")
                 }
@@ -144,17 +165,51 @@ fun LutExportDialog(recipe: Recipe, onDismiss: () -> Unit) {
                             filmSimulation = FilmSimulation.PROVIA,
                             dynamicRange = DynamicRange.DR100,
                         )
+                        // Grain is spatial: a LUT cannot carry it, so leaving it on
+                        // only scatters every patch's pixels around its true colour.
+                        // Dynamic Range Auto is pinned to the reference's DR100:
+                        // "whatever the camera decides" is not a fixed transform, so
+                        // it cannot be baked into a LUT, and leaving it to the profile
+                        // would make the result depend on whether the second pass
+                        // reused the loaded RAF or re-sent it.
+                        val forLut = recipe.copy(
+                            grainEffect = Strength.OFF,
+                            dynamicRange = if (recipe.dynamicRange == DynamicRange.AUTO) {
+                                DynamicRange.DR100
+                            } else {
+                                recipe.dynamicRange
+                            },
+                        )
+
                         status = context.getString(R.string.lut_rendering_base)
-                        val before = develop(camera, raf, neutral)
+                        val beforeJpeg = develop(camera, raf, neutral, upload = true)
                         status = context.getString(R.string.lut_rendering_recipe)
-                        val after = develop(camera, raf, recipe)
+                        // The camera still holds the RAF from the first pass, so the
+                        // second one usually costs no upload at all — that is tens of
+                        // megabytes and most of the export's wall clock. Not every
+                        // body may keep it, hence the retry.
+                        val afterJpeg = runCatching { develop(camera, raf, forLut, upload = false) }
+                            .getOrElse {
+                                DebugLog.log("recipe pass needed the RAF again: ${it.message}")
+                                develop(camera, raf, forLut, upload = true)
+                            }
 
                         status = context.getString(R.string.lut_building)
-                        val lut = withContext(Dispatchers.Default) { build(before, after) }
-                        before.recycle()
-                        after.recycle()
+                        val measured = withContext(Dispatchers.Default) {
+                            measure(beforeJpeg, afterJpeg)
+                        }
+                        val lut = measured.lut
                         coverage = lut.coverage()
-                        DebugLog.log("LUT built: ${(coverage * 100).toInt()}% coverage")
+                        DebugLog.log(
+                            "LUT built: ${(coverage * 100).toInt()}% coverage, " +
+                                "${measured.sampled} flat samples, ${measured.changed} changed"
+                        )
+                        // Both renders identical means the camera quietly ignored the
+                        // recipe. That exports a valid-looking identity LUT, so say so
+                        // rather than let it pass for a measurement.
+                        if (measured.sampled == 0L || measured.changed * 100 < measured.sampled) {
+                            warning = context.getString(R.string.lut_no_change)
+                        }
                         cube = lut.toCubeText(recipe.name)
                         status = null
                     } finally {
@@ -167,14 +222,15 @@ fun LutExportDialog(recipe: Recipe, onDismiss: () -> Unit) {
             }
             busy = false
         }
-        Unit
     }
 
     val rafPicker = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
     ) { uri ->
         if (uri != null) {
-            export { context.contentResolver.openInputStream(uri)!!.use { it.readBytes() } }
+            export(keep = true) {
+                context.contentResolver.openInputStream(uri)!!.use { it.readBytes() }
+            }
         }
     }
 
@@ -206,12 +262,35 @@ fun LutExportDialog(recipe: Recipe, onDismiss: () -> Unit) {
                             style = MaterialTheme.typography.bodySmall,
                         )
                     }
+                    // With a container kept, the chart never asks for a file again,
+                    // so this is the only way back to the picker — and the only way
+                    // out of a container that turns out to be unusable.
+                    if (donorReady) {
+                        TextButton(onClick = {
+                            DonorRaf.reset(context)
+                            donorReady = false
+                            DebugLog.log("donor container reset by the user")
+                        }) {
+                            Text(
+                                stringResource(R.string.lut_forget_donor),
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
+                    }
                 }
                 if (cube != null) {
                     Text(
                         stringResource(R.string.lut_coverage, (coverage * 100).toInt()),
                         style = MaterialTheme.typography.bodyMedium,
                     )
+                    warning?.let {
+                        Text(
+                            it,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.padding(top = 8.dp),
+                        )
+                    }
                     Text(
                         stringResource(R.string.lut_caveat),
                         style = MaterialTheme.typography.bodySmall,
@@ -229,7 +308,7 @@ fun LutExportDialog(recipe: Recipe, onDismiss: () -> Unit) {
                 Button(
                     enabled = !busy,
                     onClick = {
-                        if (ready) export {
+                        if (ready) export(keep = false) {
                             DonorRaf.load(context)
                                 ?: throw java.io.IOException(context.getString(R.string.raf_no_donor))
                         }
@@ -250,40 +329,105 @@ fun LutExportDialog(recipe: Recipe, onDismiss: () -> Unit) {
     )
 }
 
-/** Upload, apply [recipe], convert, decode. The RAF is resent per pass. */
+/**
+ * Apply [recipe], convert, and bring back the JPEG. [upload] sends the RAF
+ * first; the second pass tries to reuse the one the camera already holds.
+ */
 private fun develop(
     camera: com.beudbeud.fuji.data.ptp.FujiCamera,
     raf: ByteArray,
     recipe: Recipe,
-): Bitmap {
-    camera.sendRaf(raf)
+    upload: Boolean,
+): ByteArray {
+    if (upload) camera.sendRaf(raf)
     camera.setProfile(recipe.patchProfile(camera.getProfile(quiet = true)))
     camera.triggerConversion()
-    return decodeSampled(camera.waitForResult(), SAMPLE_DIM)
-        ?: throw java.io.IOException("Could not decode the converted JPEG")
+    return camera.waitForResult()
 }
 
-private fun build(before: Bitmap, after: Bitmap): CubeLut {
-    val lut = CubeLut()
+@Suppress("DEPRECATION")
+private fun regionDecoder(jpeg: ByteArray): android.graphics.BitmapRegionDecoder =
+    android.graphics.BitmapRegionDecoder.newInstance(jpeg, 0, jpeg.size, false)
+        ?: throw java.io.IOException("Could not decode the converted JPEG")
+
+/**
+ * Measures the two renders against each other at full resolution.
+ *
+ * Only pixels sitting inside a flat area contribute. On a seam between two
+ * patches the demosaic, the JPEG's half-resolution chroma and the DCT all smear
+ * the two colours together — and the neutral render blends them differently from
+ * the recipe render, because a recipe bends contrast and saturation non
+ * linearly. Such a pair is not a colour transform, it is an artefact of the
+ * boundary, and feeding it in teaches the cube mappings that do not exist. The
+ * same test throws out texture edges when the source is a photograph instead of
+ * a chart, for exactly the same reason.
+ */
+private fun measure(beforeJpeg: ByteArray, afterJpeg: ByteArray): Measured {
+    val decBefore = regionDecoder(beforeJpeg)
+    val decAfter = regionDecoder(afterJpeg)
     // Both renders come from one RAF, so they line up pixel for pixel
-    val w = minOf(before.width, after.width)
-    val h = minOf(before.height, after.height)
-    val rowBefore = IntArray(w)
-    val rowAfter = IntArray(w)
-    for (y in 0 until h) {
-        before.getPixels(rowBefore, 0, w, 0, y, w, 1)
-        after.getPixels(rowAfter, 0, w, 0, y, w, 1)
-        for (x in 0 until w) {
-            val s = rowBefore[x]
-            val d = rowAfter[x]
-            lut.accumulate(
-                (s shr 16) and 0xFF, (s shr 8) and 0xFF, s and 0xFF,
-                (d shr 16) and 0xFF, (d shr 8) and 0xFF, d and 0xFF,
-            )
+    val w = minOf(decBefore.width, decAfter.width)
+    val h = minOf(decBefore.height, decAfter.height)
+    val lut = CubeLut()
+    val opts = BitmapFactory.Options().apply { inPreferredConfig = Bitmap.Config.ARGB_8888 }
+    val pixBefore = IntArray(w * STRIP_ROWS)
+    val pixAfter = IntArray(w * STRIP_ROWS)
+    var sampled = 0L
+    var changed = 0L
+
+    var top = 0
+    while (top < h) {
+        val rows = minOf(STRIP_ROWS, h - top)
+        val rect = android.graphics.Rect(0, top, w, top + rows)
+        // One strip bitmap alive at a time; the pixels outlive it, the bitmap does not
+        decBefore.decodeRegion(rect, opts).let {
+            it.getPixels(pixBefore, 0, w, 0, 0, w, rows)
+            it.recycle()
         }
+        decAfter.decodeRegion(rect, opts).let {
+            it.getPixels(pixAfter, 0, w, 0, 0, w, rows)
+            it.recycle()
+        }
+
+        // The first and last row of a strip have no neighbour inside it. That
+        // costs two rows in every 256, which is cheaper than overlapping reads.
+        for (y in 1 until rows - 1) {
+            val row = y * w
+            for (x in 1 until w - 1) {
+                val i = row + x
+                val s = pixBefore[i]
+                val sr = (s shr 16) and 0xFF
+                val sg = (s shr 8) and 0xFF
+                val sb = s and 0xFF
+                if (!flat(sr, sg, sb, pixBefore[i - 1]) ||
+                    !flat(sr, sg, sb, pixBefore[i + 1]) ||
+                    !flat(sr, sg, sb, pixBefore[i - w]) ||
+                    !flat(sr, sg, sb, pixBefore[i + w])
+                ) continue
+                val d = pixAfter[i]
+                val dr = (d shr 16) and 0xFF
+                val dg = (d shr 8) and 0xFF
+                val db = d and 0xFF
+                lut.accumulate(sr, sg, sb, dr, dg, db)
+                sampled++
+                if (kotlin.math.abs(dr - sr) > CHANGE_TOLERANCE ||
+                    kotlin.math.abs(dg - sg) > CHANGE_TOLERANCE ||
+                    kotlin.math.abs(db - sb) > CHANGE_TOLERANCE
+                ) changed++
+            }
+        }
+        top += rows
     }
-    return lut
+    decBefore.recycle()
+    decAfter.recycle()
+    return Measured(lut, sampled, changed)
 }
+
+/** True when [other] is close enough to be the same flat colour. */
+private fun flat(r: Int, g: Int, b: Int, other: Int): Boolean =
+    kotlin.math.abs(((other shr 16) and 0xFF) - r) <= FLAT_TOLERANCE &&
+        kotlin.math.abs(((other shr 8) and 0xFF) - g) <= FLAT_TOLERANCE &&
+        kotlin.math.abs((other and 0xFF) - b) <= FLAT_TOLERANCE
 
 private fun sanitize(name: String) =
     name.replace(Regex("[^A-Za-z0-9 _-]"), "").trim().ifBlank { "recipe" }

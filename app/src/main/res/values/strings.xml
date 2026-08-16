@@ -63,6 +63,7 @@
     <string name="share">Share</string>
     <string name="share_text">Share as text</string>
     <string name="share_qr">Share via QR code</string>
+    <string name="qr_too_long">This recipe is too long for a QR code — shorten the notes, or share it as a file.</string>
     <string name="scan_qr">Scan QR code</string>
     <string name="send_to_camera">Send to camera</string>
     <string name="camera_slot">Custom preset slot (C1–C7)</string>
@@ -161,6 +162,7 @@
     <string name="raf_no_donor">No RAF container available — pick an uncompressed RAF from this camera.</string>
     <string name="lut_hint_chart_ready">The chart is painted into a RAF container the app already has — nothing to pick.</string>
     <string name="lut_hint_chart_needs_donor">This camera needs one uncompressed RAF of its own to carry the chart. Pick one once — only its container is kept.</string>
+    <string name="lut_forget_donor">Use a different RAF container</string>
     <string name="lut_painting_chart">Painting the chart into the RAF…</string>
     <string name="raf_compressed">This RAF is compressed. Set the camera to uncompressed RAW and shoot one frame to use as the chart carrier.</string>
     <string name="lut_rendering_base">Developing the neutral render…</string>
@@ -168,6 +170,7 @@
     <string name="lut_building">Building the LUT…</string>
     <string name="lut_coverage">%1$d%% of the colour cube measured</string>
     <string name="lut_caveat">Colours the frame did not contain are interpolated. A varied, colourful shot gives a better LUT. Clarity and grain are spatial effects and cannot be captured in a LUT.</string>
+    <string name="lut_no_change">The two renders came out almost identical — the camera seems to have ignored this recipe, so the LUT would barely change anything.</string>
     <string name="lut_save">Save .cube</string>
     <string name="lut_gen_unsupported">LUT creation is not compatible with the %1$s yet — only X-Trans V bodies (X-T30 III, X-T5, X100VI…) are supported for now.</string>
 </resources>

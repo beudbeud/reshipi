@@ -116,13 +116,12 @@ fun App(repo: RecipeRepository, sharedText: String? = null, sharedImage: android
         // Image shared from the gallery: same pipeline as "New recipe from an image"
         LaunchedEffect(sharedImage) {
             if (sharedImage != null) {
-                importRecipeImage(context, repo, sharedImage) { recipe ->
-                    if (recipe != null) {
-                        photoDraft = recipe
-                        screen = Screen.Edit(null)
-                    } else {
-                        Toast.makeText(context, R.string.photo_no_recipe, Toast.LENGTH_LONG).show()
-                    }
+                val recipe = importRecipeImage(context, repo, sharedImage)
+                if (recipe != null) {
+                    photoDraft = recipe
+                    screen = Screen.Edit(null)
+                } else {
+                    Toast.makeText(context, R.string.photo_no_recipe, Toast.LENGTH_LONG).show()
                 }
             }
         }

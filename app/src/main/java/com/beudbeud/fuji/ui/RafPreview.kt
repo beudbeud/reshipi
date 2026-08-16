@@ -105,7 +105,11 @@ fun RafPreviewDialog(recipe: Recipe, repo: RecipeRepository, onDismiss: () -> Un
                         DebugLog.log("patchProfile out: ${profileDump(patched)}")
                         camera.setProfile(patched)
                         // Read it straight back: slots the camera rejected, ignored
-                        // or clamped are the ones our index map has wrong.
+                        // or clamped are the ones our index map has wrong. Logging
+                        // the drift is one round trip and says which index to look
+                        // at; sweeping candidate values into each of them used to
+                        // happen here too, which cost up to 19 more round trips per
+                        // drifted index on every preview the user asked for.
                         runCatching {
                             val after = profileParams(camera.getProfile())
                             val sent = profileParams(patched)
@@ -116,12 +120,6 @@ fun RafPreviewDialog(recipe: Recipe, repo: RecipeRepository, onDismiss: () -> Un
                                 if (drift.isEmpty()) "profile readback: identical"
                                 else "profile readback drift — $drift"
                             )
-                            // A clamped slot means our map is wrong about it. Ask the
-                            // camera directly what it will take there, rather than
-                            // guessing one value per round trip with the user.
-                            sent.indices
-                                .filter { it < after.size && after[it] != sent[it] }
-                                .forEach { camera.probeProfileIndex(patched, it, PROBE_VALUES) }
                         }
                         camera.triggerConversion()
                         val jpeg = camera.waitForResult()
@@ -178,8 +176,12 @@ fun RafPreviewDialog(recipe: Recipe, repo: RecipeRepository, onDismiss: () -> Un
                 ) { Text(stringResource(R.string.raf_choose)) }
             } else {
                 Button(onClick = {
-                    resultJpeg?.let { repo.upsert(recipe.copy(photos = recipe.photos + repo.addPhotoBytes(it))) }
-                    onDismiss()
+                    val jpeg = resultJpeg
+                    if (jpeg != null) scope.launch {
+                        val name = withContext(Dispatchers.IO) { repo.addPhotoBytes(jpeg) }
+                        repo.upsert(recipe.copy(photos = recipe.photos + name))
+                        onDismiss()
+                    } else onDismiss()
                 }) { Text(stringResource(R.string.raf_add_photo)) }
             }
         },
@@ -221,7 +223,3 @@ private fun exifRotation(jpeg: ByteArray): Float = runCatching {
         else -> 0f
     }
 }.getOrDefault(0f)
-
-/** Small ordinals first, then the preset-space white balance codes. */
-private val PROBE_VALUES =
-    (0..12).toList() + listOf(0x8001, 0x8002, 0x8003, 0x8006, 0x8007, 0x8008)

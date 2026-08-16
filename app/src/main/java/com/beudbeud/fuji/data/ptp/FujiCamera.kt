@@ -8,6 +8,8 @@ import android.hardware.usb.UsbInterface
 import android.hardware.usb.UsbManager
 import com.beudbeud.fuji.data.DebugLog
 import java.io.IOException
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 
 /**
  * Fujifilm camera session over USB PTP — port of FilmKit's FujiCamera
@@ -75,24 +77,49 @@ class FujiCamera private constructor(
 
     private fun opName(opcode: Int) = "op 0x${opcode.toString(16)}"
 
+    /**
+     * Chunks the container onto the bus. The header travels glued to the front of
+     * the first chunk rather than in a packet of its own: a short packet is how
+     * PTP says "phase over", so a bare 12-byte header would end the transfer
+     * before the data. Byte for byte this is the same stream as building the
+     * whole container first — it just never allocates a second copy of it, which
+     * for a RAF upload is 56MB of garbage per send.
+     */
     private fun send(type: Int, code: Int, txId: Int, params: IntArray, data: ByteArray) {
-        val packet = packContainer(type, code, txId, params, data)
+        val headerSize = 12 + params.size * 4
+        val total = headerSize + data.size
         val started = System.currentTimeMillis()
-        var offset = 0
-        while (offset < packet.size) {
-            val len = minOf(SEND_CHUNK, packet.size - offset)
-            val sent = connection.bulkTransfer(epOut, packet, offset, len, TIMEOUT_MS)
+
+        val first = ByteArray(minOf(SEND_CHUNK, total))
+        ByteBuffer.wrap(first).order(ByteOrder.LITTLE_ENDIAN).apply {
+            putInt(total)
+            putShort(type.toShort())
+            putShort(code.toShort())
+            putInt(txId)
+            params.forEach { putInt(it) }
+        }
+        val inFirst = minOf(data.size, first.size - headerSize)
+        System.arraycopy(data, 0, first, headerSize, inFirst)
+
+        fun write(buf: ByteArray, offset: Int, len: Int, at: Int) {
+            val sent = connection.bulkTransfer(epOut, buf, offset, len, TIMEOUT_MS)
             if (sent != len) {
-                throw IOException(
-                    "USB write failed ($sent/$len at $offset/${packet.size}) ${opName(code)} [$diag]"
-                )
+                throw IOException("USB write failed ($sent/$len at $at/$total) ${opName(code)} [$diag]")
             }
+        }
+
+        write(first, 0, first.size, 0)
+        var offset = inFirst
+        while (offset < data.size) {
+            val len = minOf(SEND_CHUNK, data.size - offset)
+            write(data, offset, len, headerSize + offset)
             offset += len
         }
+
         // A RAF is thousands of chunks; report the rate so a slow link is visible
-        if (packet.size > SEND_CHUNK) {
+        if (total > SEND_CHUNK) {
             val ms = (System.currentTimeMillis() - started).coerceAtLeast(1)
-            DebugLog.log("sent ${packet.size / 1024}KB ${opName(code)} in ${ms}ms (${packet.size / ms}KB/s)")
+            DebugLog.log("sent ${total / 1024}KB ${opName(code)} in ${ms}ms (${total / ms}KB/s)")
         }
     }
 
@@ -359,32 +386,6 @@ class FujiCamera private constructor(
     fun setProfile(profile: ByteArray) {
         val code = sendDataCommand(PtpOp.SET_DEVICE_PROP_VALUE, intArrayOf(FujiProp.RAW_CONV_PROFILE), profile)
         if (code != PtpResp.OK) throw IOException("setProfile failed: 0x${code.toString(16)}")
-    }
-
-    /**
-     * Write [candidates] one at a time into parameter [index] and report which
-     * ones survive a read back. The camera silently clamps values it dislikes,
-     * so this is the only way to learn a parameter's accepted range. Leaves the
-     * profile set to [profile]; each probe is a round trip of a few milliseconds.
-     */
-    fun probeProfileIndex(profile: ByteArray, index: Int, candidates: List<Int>): List<Pair<Int, Int>> {
-        val params = profileParams(profile)
-        require(index in params.indices) { "index $index outside ${params.size} params" }
-        val off = profile.size - params.size * 4
-        val results = candidates.map { candidate ->
-            val trial = profile.copyOf()
-            java.nio.ByteBuffer.wrap(trial).order(java.nio.ByteOrder.LITTLE_ENDIAN)
-                .putInt(off + index * 4, candidate)
-            setProfile(trial)
-            candidate to (profileParams(getProfile(quiet = true)).getOrNull(index) ?: Int.MIN_VALUE)
-        }
-        setProfile(profile) // leave the caller's profile in place
-        DebugLog.log(
-            "probe [$index]: " + results.joinToString(" ") { (sent, kept) ->
-                if (sent == kept) "$sent=OK" else "$sent->$kept"
-            }
-        )
-        return results
     }
 
     fun triggerConversion() {

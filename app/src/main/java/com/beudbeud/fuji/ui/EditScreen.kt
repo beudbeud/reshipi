@@ -34,7 +34,11 @@ import androidx.compose.runtime.getValue
 import com.beudbeud.fuji.model.CAMERA_MODELS
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -67,11 +71,16 @@ fun EditScreen(
     var draft by remember { mutableStateOf(existing ?: Recipe()) }
     var duplicate by remember { mutableStateOf<Recipe?>(null) }
     val gen = draft.generation
+    val scope = rememberCoroutineScope()
 
     val photoPicker = rememberLauncherForActivityResult(
         ActivityResultContracts.PickVisualMedia()
     ) { uri ->
-        if (uri != null) draft = draft.copy(photos = draft.photos + repo.addPhoto(uri))
+        // addPhoto copies the whole picked image into app storage
+        if (uri != null) scope.launch {
+            val name = withContext(Dispatchers.IO) { repo.addPhoto(uri) }
+            draft = draft.copy(photos = draft.photos + name)
+        }
     }
 
     Scaffold(

@@ -45,20 +45,42 @@ object WebImport {
         }.also { DebugLog.log("web import ok: ${it.size} recipe(s), photo=${photo != null}") }
     }.onFailure { DebugLog.log("web import failed: ${it.message}") }.getOrDefault(emptyList())
 
+    private const val MAX_BODY = 8 shl 20
+
     private fun get(url: String): String? = getBytes(url)?.toString(Charsets.UTF_8)
 
-    /** GET with a browser UA; null unless HTTP 200 and body ≤ 8MB. */
+    /**
+     * GET with a browser UA; null unless HTTP 200 and body ≤ 8MB.
+     *
+     * The URL is not ours: the page is shared by the user and the og:image it
+     * names is chosen by whoever wrote the page. So the scheme is checked rather
+     * than assumed, and the body is capped while reading — reading it whole and
+     * measuring afterwards is no cap at all.
+     */
     private fun getBytes(url: String): ByteArray? {
-        val conn = URL(url).openConnection() as HttpURLConnection
+        val parsed = URL(url)
+        if (parsed.protocol !in setOf("http", "https")) return null
+        val conn = parsed.openConnection() as HttpURLConnection
         conn.connectTimeout = 10_000
         conn.readTimeout = 15_000
         conn.instanceFollowRedirects = true
         conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Android) Reshipi")
         return try {
-            if (conn.responseCode != 200) null
-            else conn.inputStream.use { it.readBytes() }.takeIf { it.size <= 8 shl 20 }
+            if (conn.responseCode != 200) null else conn.inputStream.use { readCapped(it) }
         } finally {
             conn.disconnect()
+        }
+    }
+
+    /** Everything the stream holds, or null once it exceeds [MAX_BODY]. */
+    internal fun readCapped(input: java.io.InputStream): ByteArray? {
+        val out = java.io.ByteArrayOutputStream()
+        val buf = ByteArray(16 * 1024)
+        while (true) {
+            val n = input.read(buf)
+            if (n < 0) return out.toByteArray()
+            if (out.size() + n > MAX_BODY) return null
+            out.write(buf, 0, n)
         }
     }
 

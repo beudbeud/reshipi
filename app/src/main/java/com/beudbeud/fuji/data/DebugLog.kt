@@ -26,6 +26,9 @@ object DebugLog {
         }
     }
 
+    // Synchronized like the writer: log() truncates by rewriting the whole file,
+    // and reading across that rewrite returns a torn log.
+    @Synchronized
     fun read(): String = file?.takeIf { it.exists() }?.readText() ?: ""
 
     @Synchronized

@@ -47,16 +47,8 @@ class PtpContainer(
 
 private const val HEADER_SIZE = 12
 
-fun packContainer(type: Int, code: Int, transactionId: Int, params: IntArray, data: ByteArray): ByteArray {
-    val buf = ByteBuffer.allocate(HEADER_SIZE + params.size * 4 + data.size).order(ByteOrder.LITTLE_ENDIAN)
-    buf.putInt(buf.capacity())
-    buf.putShort(type.toShort())
-    buf.putShort(code.toShort())
-    buf.putInt(transactionId)
-    params.forEach { buf.putInt(it) }
-    buf.put(data)
-    return buf.array()
-}
+// Containers are written straight onto the bus by FujiCamera.send rather than
+// built here: a RAF payload is tens of megabytes and does not want a second copy.
 
 fun unpackContainer(raw: ByteArray): PtpContainer {
     require(raw.size >= HEADER_SIZE) { "Container too short: ${raw.size} bytes" }

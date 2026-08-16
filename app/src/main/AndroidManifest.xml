@@ -5,8 +5,9 @@
     <!-- Web recipe import (Fuji X Weekly links shared from the browser) -->
     <uses-permission android:name="android.permission.INTERNET" />
 
-    <!-- A LUT export holds a 56 MB uncompressed RAF and both 3120x2080 renders
-         at once, around 110 MB — past the default heap on modest devices. -->
+    <!-- A LUT export holds a 56 MB uncompressed RAF and both converted JPEGs at
+         once, plus one full-width strip of each render being compared, around
+         110 MB — past the default heap on modest devices. -->
     <application
         android:largeHeap="true"
         android:label="@string/app_name"
