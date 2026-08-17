@@ -311,8 +311,19 @@ class CubeLut(val size: Int = 33) {
             out[i * 3 + 2] = (bb + x[i * 3 + 2]).toFloat()
         }
         val floor = trustFloor()
-        val grey = (0 until size).count { weight[index(it, it, it)] >= floor }
-        DebugLog.log("lut cells: ${weight.count { it >= floor }}/$nodes measured, grey axis $grey/$size")
+        // Where the neutral axis is measured, not just how much of it: black on
+        // the left, white on the right. Holes in the shadows and holes in the
+        // middle are different faults — the first is the raw ladder running out
+        // of resolution down there, the second is the fan of probes aiming badly
+        // — and they want opposite fixes.
+        val greyMap = (0 until size).joinToString("") {
+            if (weight[index(it, it, it)] >= floor) "#" else "."
+        }
+        val grey = greyMap.count { it == '#' }
+        DebugLog.log(
+            "lut cells: ${weight.count { it >= floor }}/$nodes measured, " +
+                "grey axis $grey/$size $greyMap"
+        )
         return out
     }
 
