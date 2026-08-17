@@ -179,4 +179,8 @@
     <string name="dev_resolve">DaVinci Resolve — exact, dans un nœud sRGB</string>
     <string name="dev_lightroom">Lightroom / Camera Raw — approximatif</string>
     <string name="dev_other">Autre / je ne sais pas</string>
+    <string name="my_camera">Mon boîtier</string>
+    <string name="my_camera_none">Non défini</string>
+    <string name="my_camera_hint">Ce sur quoi démarre une recette partie de zéro. Sans lui, une recette vierge s\'ouvre en X-Trans IV et le formulaire propose les plages de la mauvaise génération jusqu\'à correction.</string>
+    <string name="wb_shift_gains">Gains de canaux</string>
 </resources>

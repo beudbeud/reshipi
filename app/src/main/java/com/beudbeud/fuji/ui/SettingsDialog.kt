@@ -22,7 +22,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.beudbeud.fuji.R
+import com.beudbeud.fuji.data.MyCamera
 import com.beudbeud.fuji.data.RawDeveloper
+import com.beudbeud.fuji.model.CAMERA_MODELS
+import com.beudbeud.fuji.model.Generation
 
 /** The label each choice shows, and the one line of why it matters. */
 private val RawDeveloper.labelRes: Int
@@ -51,10 +54,27 @@ fun SettingsDialog(onDismiss: () -> Unit) {
         title = { Text(stringResource(R.string.settings)) },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState())) {
+                // Same list the recipe form offers, in the same order: a bare
+                // generation for a recipe that targets a family, then the bodies.
+                val cameras = remember {
+                    Generation.entries.map { it.label } + CAMERA_MODELS.map { it.first }
+                }
+                var camera by remember { mutableStateOf(MyCamera.label(context)) }
+                Text(
+                    stringResource(R.string.my_camera_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                EnumDropdown(
+                    stringResource(R.string.my_camera),
+                    listOf<String?>(null) + cameras,
+                    camera,
+                    { it ?: stringResource(R.string.my_camera_none) },
+                ) { camera = it; MyCamera.set(context, it) }
+
                 Text(
                     stringResource(R.string.dev_hint),
                     style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.padding(bottom = 8.dp),
+                    modifier = Modifier.padding(top = 16.dp, bottom = 8.dp),
                 )
                 for (dev in RawDeveloper.entries) {
                     Row(

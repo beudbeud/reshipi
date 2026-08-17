@@ -106,18 +106,15 @@ enum class RawDeveloper {
     }
 
     companion object {
-        private const val PREFS = "reshipi"
         private const val KEY = "raw_developer"
 
         fun of(context: Context): RawDeveloper {
-            val name = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-                .getString(KEY, null) ?: return OTHER
+            val name = prefs(context).getString(KEY, null) ?: return OTHER
             return entries.firstOrNull { it.name == name } ?: OTHER
         }
 
         fun set(context: Context, value: RawDeveloper) {
-            context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-                .edit().putString(KEY, value.name).apply()
+            prefs(context).edit().putString(KEY, value.name).apply()
             DebugLog.log("raw developer set to $value")
         }
     }

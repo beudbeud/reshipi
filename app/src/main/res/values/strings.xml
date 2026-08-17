@@ -180,4 +180,8 @@
     <string name="dev_resolve">DaVinci Resolve — exact, in an sRGB node</string>
     <string name="dev_lightroom">Lightroom / Camera Raw — approximate</string>
     <string name="dev_other">Other / not sure</string>
+    <string name="my_camera">My camera</string>
+    <string name="my_camera_none">Not set</string>
+    <string name="my_camera_hint">What a recipe from scratch starts on. Without it a blank recipe opens on X-Trans IV, and the form offers the wrong generation\'s ranges until you correct it.</string>
+    <string name="wb_shift_gains">Channel gains</string>
 </resources>

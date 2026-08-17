@@ -58,6 +58,7 @@ import androidx.compose.ui.window.Dialog
 import coil.compose.AsyncImage
 import com.beudbeud.fuji.R
 import com.beudbeud.fuji.data.RecipeRepository
+import com.beudbeud.fuji.data.SyntheticRaf
 import com.beudbeud.fuji.model.Recipe
 import com.beudbeud.fuji.model.Strength
 import com.beudbeud.fuji.model.WhiteBalance
@@ -307,6 +308,18 @@ fun RecipeSettingsRows(recipe: Recipe) {
             (recipe.kelvin?.let { " ${it}K" }.takeIf { recipe.whiteBalance == WhiteBalance.KELVIN } ?: "") +
             "  R${formatSigned(recipe.wbShiftRed)} B${formatSigned(recipe.wbShiftBlue)}",
     )
+    // What the shift is worth as channel gains, for whoever has to reproduce it
+    // outside the camera — "R-6" means nothing to a raw developer. Shown, never
+    // written out: the recipe is the steps, and a gain is this app's reading of
+    // them, measured on one body. Exporting it would pass a local measurement
+    // off as part of the recipe.
+    if (recipe.wbShiftRed != 0 || recipe.wbShiftBlue != 0) {
+        val gains = SyntheticRaf.shiftGains(recipe.wbShiftRed, recipe.wbShiftBlue)
+        DetailRow(
+            stringResource(R.string.wb_shift_gains),
+            "R ×%.2f   B ×%.2f".format(java.util.Locale.getDefault(), gains[0], gains[1]),
+        )
+    }
     DetailRow(stringResource(R.string.dynamic_range), recipe.dynamicRange.label)
     if (gen.hasDRangePriority) {
         DetailRow(stringResource(R.string.d_range_priority), stringResource(recipe.dRangePriority.labelRes))
