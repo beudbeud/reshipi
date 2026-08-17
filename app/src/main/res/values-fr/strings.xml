@@ -162,6 +162,7 @@
     <string name="lut_hint_chart_ready">La mire est écrite dans une enveloppe RAF que l\'app possède déjà — rien à choisir.</string>
     <string name="lut_hint_chart_needs_donor">Ce boîtier a besoin d\'un RAF non compressé qui lui appartienne pour porter la mire — prends-le en DR400, un RAF ne se convertissant qu\'à la plage dynamique de sa prise de vue, ou en dessous. Choisis-en un, une seule fois ; seule son enveloppe est conservée.</string>
     <string name="lut_forget_donor">Utiliser une autre enveloppe RAF</string>
+    <string name="lut_use_bundled">Revenir à l\'enveloppe fournie avec l\'app</string>
     <string name="lut_painting_chart">Écriture de la mire dans le RAF…</string>
     <string name="raf_compressed">Ce RAF est compressé. Règle le boîtier sur RAW non compressé et prends une photo qui servira de porteur pour la mire.</string>
     <string name="lut_rendering_base">Développement du rendu neutre…</string>

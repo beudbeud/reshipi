@@ -139,6 +139,7 @@ fun LutExportDialog(recipe: Recipe, onDismiss: () -> Unit) {
     // Measured on an X-T30 III: a chart reaches 75% of the cube where the best
     // photograph reached 35% — so it is the default whenever it can run.
     var donorReady by remember { mutableStateOf(DonorRaf.exists(context)) }
+    var ownDonor by remember { mutableStateOf(DonorRaf.kept(context)) }
     var synthetic by remember { mutableStateOf(donorReady) }
 
     // Which container the dialog opened on. Whether the chart can run at all is
@@ -146,7 +147,7 @@ fun LutExportDialog(recipe: Recipe, onDismiss: () -> Unit) {
     // dialog that opened asking for a file gave no way to tell which of them
     // said so.
     LaunchedEffect(Unit) {
-        DebugLog.log("donor state: kept=${DonorRaf.kept(context)} ready=$donorReady")
+        DebugLog.log("donor state: kept=$ownDonor ready=$donorReady")
     }
 
     val saver = rememberLauncherForActivityResult(
@@ -179,6 +180,7 @@ fun LutExportDialog(recipe: Recipe, onDismiss: () -> Unit) {
                 // rendering, neither of which says anything about the file.
                 if (keep && withContext(Dispatchers.IO) { DonorRaf.save(context, raf) }) {
                     donorReady = true
+                    ownDonor = true
                     DebugLog.log("donor kept: ${RafFile.cameraModel(raf)}")
                 }
                 val camera = connectFujiCamera(context)
@@ -457,8 +459,9 @@ fun LutExportDialog(recipe: Recipe, onDismiss: () -> Unit) {
                     // a file mean anything.
                     if (donorReady) {
                         TextButton(onClick = {
-                            if (DonorRaf.kept(context)) {
+                            if (ownDonor) {
                                 DonorRaf.reset(context)
+                                ownDonor = false
                                 donorReady = DonorRaf.exists(context)
                                 DebugLog.log("kept container dropped for the bundled one")
                             } else {
@@ -467,7 +470,16 @@ fun LutExportDialog(recipe: Recipe, onDismiss: () -> Unit) {
                             }
                         }) {
                             Text(
-                                stringResource(R.string.lut_forget_donor),
+                                stringResource(
+                                    // Naming the outcome rather than the intent: one
+                                    // of these falls back to the container the app
+                                    // ships, the other asks for a file. A single
+                                    // label read as "let me choose" in both, which
+                                    // sent anyone wanting the bundled container to
+                                    // the picker instead.
+                                    if (ownDonor) R.string.lut_use_bundled
+                                    else R.string.lut_forget_donor
+                                ),
                                 style = MaterialTheme.typography.bodySmall,
                             )
                         }

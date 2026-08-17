@@ -163,6 +163,7 @@
     <string name="lut_hint_chart_ready">The chart is painted into a RAF container the app already has — nothing to pick.</string>
     <string name="lut_hint_chart_needs_donor">This camera needs one uncompressed RAF of its own to carry the chart — shoot it at DR400, since a RAF only converts at the dynamic range it was shot at or below. Pick one once; only its container is kept.</string>
     <string name="lut_forget_donor">Use a different RAF container</string>
+    <string name="lut_use_bundled">Go back to the container the app ships</string>
     <string name="lut_painting_chart">Painting the chart into the RAF…</string>
     <string name="raf_compressed">This RAF is compressed. Set the camera to uncompressed RAW and shoot one frame to use as the chart carrier.</string>
     <string name="lut_rendering_base">Developing the neutral render…</string>

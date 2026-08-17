@@ -16,6 +16,10 @@ object DebugLog {
 
     @Synchronized
     fun log(message: String) {
+        // Also to logcat: the file lives in filesDir, which a release build does
+        // not hand over, so diagnosing anything meant asking the user to export
+        // the log and paste it back. `adb logcat -s Reshipi` reads it directly.
+        android.util.Log.d("Reshipi", message)
         val f = file ?: return
         runCatching {
             f.appendText("${LocalDateTime.now().format(fmt)} $message\n")
