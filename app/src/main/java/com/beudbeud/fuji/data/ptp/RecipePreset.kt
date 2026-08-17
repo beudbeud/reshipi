@@ -219,6 +219,22 @@ fun Recipe.patchProfile(base: ByteArray): ByteArray {
         DynamicRange.DR400 -> set(6, 400)
         DynamicRange.AUTO -> Unit // keep the RAF's value
     }
+    // Index 7 is live, and all four of its values render differently — measured
+    // by converting one chart at each and reading the mean of the result:
+    //
+    //   7=0  R163 G179 B162   7=1  R149 G151 B159
+    //   7=2  R146 G160 B153   7=3  R153 G167 B154
+    //
+    // What is not established is which value is which. The ordinal goes out bare,
+    // 0 for off, where the neighbours above write ordinal + 1 and send 1 for off,
+    // and brightness does not settle it: 7=2 renders darker than 7=3, and strong
+    // compressing less than weak is not something D-Range Priority does. Nor can
+    // it settle it — D-Range Priority maps tones from the histogram, and a chart
+    // that sweeps the cube uniformly is not a scene, so the order it comes out in
+    // says more about the chart than about the encoding.
+    //
+    // The body's own makernotes would settle it: shoot at weak and at strong and
+    // read what it writes for DRangePriorityFixed.
     set(7, dRangePriority.ordinal)
     val grain = when {
         grainEffect == Strength.OFF -> 1
