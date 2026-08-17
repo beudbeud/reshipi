@@ -26,8 +26,32 @@ object DonorRaf {
     /** Tombstone for the bundled container once a body has refused it. */
     private fun rejected(context: Context) = File(context.filesDir, "donor.rejected")
 
+    /**
+     * Names the bundled container, so a refusal can say which one it refused.
+     *
+     * An empty tombstone meant "the bundled container, whatever it is", and the
+     * bundled container is not a constant — replacing it left every phone that
+     * had ever refused the old one refusing a file it has never seen, for good.
+     * The gzip trailer carries the CRC of the contents, so the whole 20 KB
+     * resource is read but nothing is decompressed.
+     */
+    private fun stamp(context: Context): String = runCatching {
+        context.resources.openRawResource(R.raw.donor_x_t30_iii).use { it.readBytes() }
+    }.getOrNull()?.let { b ->
+        "${b.size}:" + b.takeLast(4).joinToString("") { "%02x".format(it) }
+    } ?: ""
+
+    /** Whether the bundled container is the one a body has already turned down. */
+    private fun refused(context: Context): Boolean =
+        rejected(context).exists() &&
+            runCatching { rejected(context).readText() }.getOrNull().let {
+                // A tombstone from before the stamp existed is empty, and names
+                // the container that shipped then rather than this one.
+                !it.isNullOrEmpty() && it == stamp(context)
+            }
+
     /** Whether a chart export can run without asking for a file. */
-    fun exists(context: Context) = head(context).length() > 0 || !rejected(context).exists()
+    fun exists(context: Context) = kept(context) || !refused(context)
 
     /** Whether the container in use is one the user supplied rather than the bundled one. */
     fun kept(context: Context) = head(context).length() > 0
@@ -49,7 +73,7 @@ object DonorRaf {
     /** A full-size RAF ready to be painted, or null when none can be had. */
     fun load(context: Context): ByteArray? =
         usable(runCatching { head(context).readBytes() }.getOrNull())
-            ?: if (rejected(context).exists()) null else usable(bundled(context))
+            ?: if (refused(context)) null else usable(bundled(context))
 
     private fun bundled(context: Context): ByteArray? = runCatching {
         context.resources.openRawResource(R.raw.donor_x_t30_iii).use {
@@ -88,7 +112,7 @@ object DonorRaf {
      * one has to be remembered or every export would offer it again.
      */
     fun forget(context: Context) {
-        if (!head(context).delete()) runCatching { rejected(context).writeBytes(ByteArray(0)) }
+        if (!head(context).delete()) runCatching { rejected(context).writeText(stamp(context)) }
     }
 
     /**

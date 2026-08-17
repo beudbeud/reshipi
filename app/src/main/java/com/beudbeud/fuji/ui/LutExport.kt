@@ -15,6 +15,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -137,6 +138,14 @@ fun LutExportDialog(recipe: Recipe, onDismiss: () -> Unit) {
     // photograph reached 35% — so it is the default whenever it can run.
     var donorReady by remember { mutableStateOf(DonorRaf.exists(context)) }
     var synthetic by remember { mutableStateOf(donorReady) }
+
+    // Which container the dialog opened on. Whether the chart can run at all is
+    // decided before anything is drawn, from two files on disk, and until now a
+    // dialog that opened asking for a file gave no way to tell which of them
+    // said so.
+    LaunchedEffect(Unit) {
+        DebugLog.log("donor state: kept=${DonorRaf.kept(context)} ready=$donorReady")
+    }
 
     val saver = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/octet-stream")
