@@ -173,7 +173,19 @@ object SyntheticRaf {
         return true
     }
 
-    /** Ratios either side of what a camera's own channel gains need. */
+    /**
+     * Ratios either side of what a camera's own channel gains need — near half
+     * the top for red and two thirds for blue.
+     *
+     * Wide on purpose, and narrowing it has been tried: 0.40 to 0.80 aims three
+     * times as finely at those two figures and cost 19530 measured cells to
+     * 16648, with the neutral axis falling from 27 of 33 to 18. The fan holds
+     * 8019 patches, a fifth of the chart, and only one of its three orientations
+     * can reach neutral on a body whose green leads — the other two would need a
+     * ratio above 1. Those probes are not failed greys, they are the only
+     * colours in the chart that do not come off the sweep's own grid, and the
+     * cube misses them at once.
+     */
     private const val GAINS = 9
     private const val RATIO_MIN = 0.35
     private const val RATIO_MAX = 1.0
