@@ -159,23 +159,8 @@ object SyntheticRaf {
      *
      * [patchPx] must be a multiple of 6 so every patch holds whole mosaic tiles
      * and is therefore a single flat colour.
-     *
-     * [gainR] and [gainB] scale the signal in those channels, which is exactly
-     * what a white balance shift does — the body will not accept the setting
-     * during conversion, but the photosites are ours to write, so the shift can
-     * be painted in instead of asked for. [headroom] holds the ladder down by
-     * the largest gain either pass will use, so that nothing clips and both
-     * passes measure the same colours: it has to be the same on the shifted
-     * chart and the unshifted one it is compared against.
      */
-    fun chart(
-        raf: ByteArray,
-        patchPx: Int = 24,
-        steps: Int = 33,
-        gainR: Double = 1.0,
-        gainB: Double = 1.0,
-        headroom: Double = maxOf(1.0, gainR, gainB),
-    ): Boolean {
+    fun chart(raf: ByteArray, patchPx: Int = 24, steps: Int = 33): Boolean {
         require(patchPx % 6 == 0) { "patch must tile the 6x6 mosaic" }
         val layout = layout(raf) ?: return false
         val cols = layout.width / patchPx
@@ -187,9 +172,8 @@ object SyntheticRaf {
         // *rendered* patches evenly instead of piling them into the highlights,
         // and the ladder starts at black so that every rung is a signal rather
         // than a differently-worded nothing.
-        val span = (MAX - BLACK) / maxOf(1.0, headroom)
         val level = IntArray(steps) {
-            (BLACK + span * (it.toDouble() / (steps - 1)).pow(2.2))
+            (BLACK + (MAX - BLACK) * (it.toDouble() / (steps - 1)).pow(2.2))
                 .roundToInt().coerceIn(0, MAX)
         }
         val site = Array(6) { y -> IntArray(6) { x -> layout.pattern[((y + PHASE) % 6) * 6 + (x + PHASE) % 6].toInt() } }
@@ -203,22 +187,12 @@ object SyntheticRaf {
         // fewer patches than colours the sweep never reaches the last ones.
         DebugLog.log(
             "chart: ${cols}x$rows patches of ${patchPx}px, $combinations colours" +
-                (if (gainR != 1.0 || gainB != 1.0) {
-                    ", wb shift painted in R x%.3f B x%.3f".format(java.util.Locale.US, gainR, gainB)
-                } else "") +
-                (if (headroom > 1.0) ", ceiling held down x%.3f".format(java.util.Locale.US, headroom) else "") +
                 when {
                     spare < 0 -> " — TRUNCATED, only ${cols * rows} fit"
                     else -> ", ${minOf(spare, neutrals)} of $neutrals neutral probes"
                 }
         )
 
-        /** The shift acts on signal, so it multiplies what sits above black. */
-        fun shifted(v: Int, gain: Double) =
-            if (gain == 1.0) v
-            else (BLACK + (v - BLACK) * gain).roundToInt().coerceIn(0, MAX)
-
-        val out = IntArray(3)
         var patch = 0
         for (patchRow in 0 until rows) {
             for (patchCol in 0 until cols) {
@@ -230,15 +204,12 @@ object SyntheticRaf {
                 } else {
                     neutralProbe((n - combinations) % neutrals, level, rgb)
                 }
-                out[0] = shifted(rgb[0], gainR)
-                out[1] = rgb[1]
-                out[2] = shifted(rgb[2], gainB)
                 for (dy in 0 until patchPx) {
                     val y = patchRow * patchPx + dy
                     val row = site[y % 6]
                     var i = layout.pixels + (y * layout.width + patchCol * patchPx) * 2
                     for (dx in 0 until patchPx) {
-                        val v = out[row[dx % 6]]
+                        val v = rgb[row[dx % 6]]
                         raf[i] = (v and 0xFF).toByte()
                         raf[i + 1] = (v shr 8).toByte()
                         i += 2

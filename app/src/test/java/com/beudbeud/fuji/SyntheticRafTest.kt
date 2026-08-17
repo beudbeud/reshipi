@@ -119,14 +119,13 @@ class SyntheticRafTest {
     }
 
     /**
-     * The body refuses the white balance shift during conversion, but the shift is
-     * a gain on the red and blue signal and the photosites are ours to write. It
-     * has to land on the signal above black, and the ladder has to come down by
-     * the same amount on both charts — a shifted chart that clipped where its
-     * reference did not would differ in more than the shift.
+     * The shift is not in the cube — it changes the raw-to-intermediate stage
+     * both passes share, so what separates them stops being a function of the
+     * rendered colour and the fit smears the hue. It is named in the header
+     * instead, and named in gains, "R-6" meaning nothing to a raw developer.
      */
     @Test
-    fun theWhiteBalanceShiftIsPaintedOntoTheSignal() {
+    fun theWhiteBalanceShiftReadsOffTheMeasuredTable() {
         // Straight off the recorded gains: red 567 -> 1050, blue 536 -> 307.
         val gains = SyntheticRaf.shiftGains(red = 9, blue = -9)
         assertEquals(1.851, gains[0], 0.01)
@@ -137,20 +136,6 @@ class SyntheticRafTest {
         assertEquals(0.740, SyntheticRaf.shiftGains(-6, 0)[0], 0.01)
         // Off the end of the grid, held rather than extrapolated.
         assertEquals(gains[0], SyntheticRaf.shiftGains(99, 0)[0], 0.0001)
-
-        val plain = donor().also {
-            SyntheticRaf.chart(it, patchPx = 24, steps = 2, headroom = gains[0])
-        }
-        val shifted = donor().also {
-            SyntheticRaf.chart(it, patchPx = 24, steps = 2, gainR = gains[0], gainB = gains[1])
-        }
-        // Patch 1 is full red; site (0,2) is a red photosite at this phase.
-        val before = plain.site(0, 24 + 2)
-        val after = shifted.site(0, 24 + 2)
-        assertEquals(BLACK + (before - BLACK) * gains[0], after.toDouble(), 1.0)
-        assertTrue("the shift must not clip: $after", after <= 16383)
-        // Green is untouched, and the held-down ceiling is the same on both.
-        assertEquals(plain.site(0, 48 + 0), shifted.site(0, 48 + 0))
     }
 
     @Test
