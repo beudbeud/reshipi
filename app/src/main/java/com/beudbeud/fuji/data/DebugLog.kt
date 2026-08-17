@@ -19,7 +19,9 @@ object DebugLog {
         // Also to logcat: the file lives in filesDir, which a release build does
         // not hand over, so diagnosing anything meant asking the user to export
         // the log and paste it back. `adb logcat -s Reshipi` reads it directly.
-        android.util.Log.d("Reshipi", message)
+        // Guarded because there is no logcat under JUnit, where the stub throws —
+        // a log line has no business failing anything, least of all a test suite.
+        runCatching { android.util.Log.d("Reshipi", message) }
         val f = file ?: return
         runCatching {
             f.appendText("${LocalDateTime.now().format(fmt)} $message\n")

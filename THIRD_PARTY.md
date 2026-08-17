@@ -31,13 +31,12 @@ header, the CFA-header tag list, and nothing else. It exists so a synthetic
 colour chart has a valid container to be written into, and the app overwrites
 every photosite in it before use.
 
-It was made from a frame shot for the purpose, uncompressed and at DR400 — a
-RAF converts at the dynamic range it was shot at or below, never above, so the
-container has to sit at the top for a recipe at any range to be reproducible
-from it. The photograph itself does not remain: the sensor data is not stored
-at all, and the embedded preview's image is a rendering of the chart. The
-preview's metadata segments (EXIF and maker notes) are kept as-is — the camera
-refuses to convert a file without them — with the body, lens and internal
-serial numbers zeroed in place. What is left is the format scaffolding plus
-FUJIFILM's sensor description tags — the readout size and the X-Trans mosaic —
-which the app reads rather than hard-codes so that other bodies work too.
+It was derived from a sample frame published by
+[PhotographyBlog](https://www.photographyblog.com/reviews/fujifilm_x_t30_iii_review).
+The photograph itself does not remain: the sensor data is not stored at all,
+and the embedded preview's image has been replaced by a rendering of the
+chart. The preview's metadata segments (EXIF and maker notes) are kept as-is —
+the camera refuses to convert a file without them. What is left is the format
+scaffolding plus FUJIFILM's sensor description tags — the readout size and the
+X-Trans mosaic — which the app reads rather than hard-codes so that other
+bodies work too.
