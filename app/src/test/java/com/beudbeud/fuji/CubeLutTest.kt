@@ -118,6 +118,34 @@ class CubeLutTest {
         data.forEach { assertEquals(3, it.split(" ").size) }
     }
 
+    /**
+     * A chart brings far more colours than greys, and a least-squares fit answers
+     * to whoever brought the most samples. One grey against forty neighbours that
+     * want it left alone has to still be heard, or every recipe's greys come out
+     * carrying the cast of whatever surrounds them on the chart.
+     */
+    @Test
+    fun oneGreySampleOutvotesTheColoursAroundIt() {
+        val lut = CubeLut(9)
+        // The transform warms greys and leaves everything else untouched.
+        lut.accumulate(128, 128, 128, 148, 128, 108)
+        for (d in listOf(-30, -20, 20, 30)) {
+            for (o in 0..9) {
+                lut.accumulate(128 + d, 128, 128 - d + o, 128 + d, 128, 128 - d + o)
+            }
+        }
+        val grid = lut.build()
+        // Node 4 of 9 is the middle grey, the one the samples straddle.
+        val at = ((4 * 9) + 4) * 9 + 4
+        val r = grid[at * 3]
+        val b = grid[at * 3 + 2]
+        // The grey sample asks for ±20 of 255, so 0.157 is the whole of what it
+        // said. Unweighted, its neighbours drag that down to 0.121.
+        assertTrue("grey outvoted by its neighbours: R-B=${r - b}", r - b > 0.145f)
+        // And it must not go the other way: the colours around it are data too.
+        assertTrue("grey fitted at the colours' expense: R-B=${r - b}", r - b < 0.17f)
+    }
+
     /** Notes say what the cube is a transform of; they must not become data rows. */
     @Test
     fun notesAreCommentedOut() {

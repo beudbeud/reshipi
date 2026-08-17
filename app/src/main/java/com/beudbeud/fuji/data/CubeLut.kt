@@ -68,6 +68,18 @@ class CubeLut(val size: Int = 33) {
         val tg = fg - g0
         val tb = fb - b0
 
+        // How near-grey this sample is decides how much it counts. A chart sweeps
+        // the cube uniformly, so greys arrive vastly outnumbered by the colours
+        // surrounding them, and a least-squares fit answers to whoever brought
+        // the most samples: the neutral axis gets dragged off by its colourful
+        // neighbours. It is also the one place an error is unmissable — a cast on
+        // a grey is the first thing anyone sees. Weighting greys up is what
+        // colour profiling does by constraining the neutral axis outright; this
+        // is the same intent, expressed as evidence rather than as a constraint,
+        // and it costs one multiplication.
+        val chroma = maxOf(srcR, srcG, srcB) - minOf(srcR, srcG, srcB)
+        val sw = 1.0 + NEUTRAL_BOOST * maxOf(0.0, 1.0 - chroma / NEUTRAL_SPAN)
+
         var n = 0
         for (i in 0..1) {
             val wr = if (i == 0) 1.0 - tr else tr
@@ -75,7 +87,7 @@ class CubeLut(val size: Int = 33) {
                 val wg = wr * (if (j == 0) 1.0 - tg else tg)
                 for (k in 0..1) {
                     corner[n] = wg * (if (k == 0) 1.0 - tb else tb)
-                    weight[index(r0 + i, g0 + j, b0 + k)] += corner[n]
+                    weight[index(r0 + i, g0 + j, b0 + k)] += sw * corner[n]
                     n++
                 }
             }
@@ -86,13 +98,14 @@ class CubeLut(val size: Int = 33) {
         val db = (dstB - srcB) / 255.0
         val cell = (b0 * side + g0) * side + r0
         used[cell] = true
+        // sw multiplies each sample once, not twice: these are AᵀWA and AᵀWb.
         var p = cell * BLOCK
         for (a in 0..7) {
-            val wa = corner[a]
+            val wa = sw * corner[a]
             for (b in a..7) block[p++] += wa * corner[b]
         }
         for (a in 0..7) {
-            val wa = corner[a]
+            val wa = sw * corner[a]
             block[p++] += wa * dr
             block[p++] += wa * dg
             block[p++] += wa * db
@@ -413,6 +426,20 @@ class CubeLut(val size: Int = 33) {
 
         /** Share of the average node's evidence below which it is not a measurement. */
         const val THIN_NODE = 0.02
+
+        /**
+         * Channel spread, of 255, beyond which a sample is simply a colour.
+         * The boost falls off linearly to nothing across it.
+         */
+        const val NEUTRAL_SPAN = 24.0
+
+        /**
+         * What a perfectly neutral sample counts for, over and above a colour.
+         * A calibration knob: too low and greys stay outvoted, too high and the
+         * neutral axis is fitted while the colours around it are ignored. The
+         * held-back audit is what says which — it never sees the weighting.
+         */
+        const val NEUTRAL_BOOST = 8.0
 
         /** How hard neighbouring nodes are held together, relative to the data. */
         const val SMOOTH = 0.05
