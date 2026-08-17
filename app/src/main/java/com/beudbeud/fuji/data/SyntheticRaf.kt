@@ -173,10 +173,21 @@ object SyntheticRaf {
         return true
     }
 
-    /** Ratios either side of what a camera's own channel gains need. */
+    /**
+     * Ratios either side of what a camera's own channel gains need — near half
+     * the top for red and two thirds for blue.
+     *
+     * The span ran 0.35 to 1.0, most of which is nowhere near any body's gains,
+     * and its nine rungs landed 0.081 apart. Narrowed to the region the gains
+     * actually live in they land 0.05 apart, with 0.50 exact and 0.65 within
+     * 0.02 of the blue target, for the same nine probes per axis — no
+     * reallocation, which is what made an earlier attempt at this worse: it paid
+     * for finer aim by spreading the probes thinner, and a node needs a clump of
+     * them to clear the trust floor.
+     */
     private const val GAINS = 9
-    private const val RATIO_MIN = 0.35
-    private const val RATIO_MAX = 1.0
+    private const val RATIO_MIN = 0.40
+    private const val RATIO_MAX = 0.80
 
     /** Green on top, then red, then blue: the fan reaches neutral from every side. */
     private const val ORIENTATIONS = 3
