@@ -427,14 +427,25 @@ fun LutExportDialog(recipe: Recipe, onDismiss: () -> Unit) {
                             style = MaterialTheme.typography.bodySmall,
                         )
                     }
-                    // With a container kept, the chart never asks for a file again,
-                    // so this is the only way back to the picker — and the only way
-                    // out of a container that turns out to be unusable.
+                    // With a container in hand the chart never asks for a file, so
+                    // this is the only way out of one that turns out to be wrong.
+                    // There are two of those, and they want opposite things: a
+                    // container the user supplied is dropped in favour of the
+                    // bundled one, which reset() makes available again by clearing
+                    // the refusal along with it — announcing "no container" there
+                    // sent the user to the picker for a file the app already has.
+                    // Only when the bundled one is what is in play does asking for
+                    // a file mean anything.
                     if (donorReady) {
                         TextButton(onClick = {
-                            DonorRaf.reset(context)
-                            donorReady = false
-                            DebugLog.log("donor container reset by the user")
+                            if (DonorRaf.kept(context)) {
+                                DonorRaf.reset(context)
+                                donorReady = DonorRaf.exists(context)
+                                DebugLog.log("kept container dropped for the bundled one")
+                            } else {
+                                donorReady = false
+                                DebugLog.log("bundled container set aside for a picked file")
+                            }
                         }) {
                             Text(
                                 stringResource(R.string.lut_forget_donor),

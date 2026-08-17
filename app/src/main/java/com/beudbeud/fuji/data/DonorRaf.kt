@@ -29,6 +29,9 @@ object DonorRaf {
     /** Whether a chart export can run without asking for a file. */
     fun exists(context: Context) = head(context).length() > 0 || !rejected(context).exists()
 
+    /** Whether the container in use is one the user supplied rather than the bundled one. */
+    fun kept(context: Context) = head(context).length() > 0
+
     /**
      * Remembers [raf]'s container, returning whether it could be kept. A
      * compressed file has no container we can paint into, so it is not one.
