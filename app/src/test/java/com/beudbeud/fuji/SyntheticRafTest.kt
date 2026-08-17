@@ -127,14 +127,16 @@ class SyntheticRafTest {
      */
     @Test
     fun theWhiteBalanceShiftIsPaintedOntoTheSignal() {
+        // Straight off the recorded gains: red 567 -> 1050, blue 536 -> 307.
         val gains = SyntheticRaf.shiftGains(red = 9, blue = -9)
-        // Red at +9 is the 567 -> 1050 the body recorded, straight off the tag.
         assertEquals(1.851, gains[0], 0.01)
-        // Blue at -9 is the rising rate inverted, 1.499 the other way. The body
-        // recorded 536 -> 307, or 0.573, which is lower than any rate explains
-        // and equal to what red's falling leg landed on — a floor at green's own
-        // gain, not a measurement, so the model does not follow it down there.
-        assertEquals(0.667, gains[1], 0.01)
+        assertEquals(0.573, gains[1], 0.01)
+        // Halfway between two measured steps, and nowhere near what a constant
+        // ratio per step would give: -6 sits between the -9 and -4 rungs, where
+        // the grid is coarse, and an exponential fitted to the ends says 0.663.
+        assertEquals(0.740, SyntheticRaf.shiftGains(-6, 0)[0], 0.01)
+        // Off the end of the grid, held rather than extrapolated.
+        assertEquals(gains[0], SyntheticRaf.shiftGains(99, 0)[0], 0.0001)
 
         val plain = donor().also {
             SyntheticRaf.chart(it, patchPx = 24, steps = 2, headroom = gains[0])

@@ -107,32 +107,51 @@ object SyntheticRaf {
     }
 
     /**
-     * What one step of the camera's white balance shift does to a channel gain.
+     * What the camera's white balance shift does to a channel gain, as measured.
      *
-     * Measured on an X-T30 III from three RAFs shot in Daylight, reading the
-     * WB_GRBLevels the body records for each — the shift is folded into those
-     * gains rather than kept beside them:
+     * From RAFs shot in Daylight, reading the WB_GRBLevels the body records for
+     * each — the shift is folded into those gains rather than kept beside them:
      *
      * ```
-     * R+0 B+0   302  567  536
-     * R+9 B-9   302 1050  307
-     * R-9 B+9   302  307  803
+     *  steps    G    R    B
+     *  R+0 B+0  302  567  536
+     *  R-4 B-4  302  494  473
+     *  R+9 B-9  302 1050  307
+     *  R-9 B+9  302  307  803
      * ```
      *
-     * Taken from the rising direction only. Both falling legs land on 307, which
-     * is a gain of 1.017 times green's, and the blue one should have been at 358
-     * — a floor rather than a coincidence. Red's falling leg agrees with its
-     * rising one to 0.03%, which is what says the law is a ratio per step at all.
+     * A table rather than a law, because there is no law: the response is fine
+     * near zero and coarse at the ends, 18 counts per step between -4 and 0
+     * against 54 between 0 and +9. A ratio per step fitted to the ends misses
+     * -4 by 15%, which is how this table replaced one.
+     *
+     * Nothing here is discounted as unreliable either. If the body holds the
+     * gain at some floor near the bottom of the grid — both -9 legs land on 307,
+     * a hair above green's own 302 — then that floor is what it does, and the
+     * gain there really is that. There is only what was recorded.
      *
      * Calibration knobs: one body, one white balance mode, and the assumption
-     * that the step is the same wherever the mode starts from.
+     * that a step means the same wherever the mode starts from. More steps
+     * measured is a finer table and nothing else has to change.
      */
-    private const val SHIFT_RED = 1.0709
-    private const val SHIFT_BLUE = 1.0459
+    private val SHIFT_STEPS = intArrayOf(-9, -4, 0, 9)
+    private val SHIFT_RED = doubleArrayOf(0.5414, 0.8712, 1.0, 1.8519)
+    private val SHIFT_BLUE = doubleArrayOf(0.5728, 0.8825, 1.0, 1.4981)
+
+    /** Straight-line between the measured steps, held at the ends. */
+    private fun interpolate(steps: Int, gain: DoubleArray): Double {
+        val n = steps.coerceIn(SHIFT_STEPS.first(), SHIFT_STEPS.last())
+        for (i in 0 until SHIFT_STEPS.size - 1) {
+            val a = SHIFT_STEPS[i]
+            val b = SHIFT_STEPS[i + 1]
+            if (n in a..b) return gain[i] + (gain[i + 1] - gain[i]) * (n - a) / (b - a).toDouble()
+        }
+        return 1.0
+    }
 
     /** The channel gains a shift of [red] and [blue] steps comes to. */
     fun shiftGains(red: Int, blue: Int): DoubleArray =
-        doubleArrayOf(SHIFT_RED.pow(red), SHIFT_BLUE.pow(blue))
+        doubleArrayOf(interpolate(red, SHIFT_RED), interpolate(blue, SHIFT_BLUE))
 
     /**
      * Paints [steps]^3 colours as [patchPx]-wide patches, in place. Returns false
