@@ -139,7 +139,7 @@ class SyntheticRafTest {
     fun theNeutralFanBracketsTheRatioThatRendersGrey() {
         val level = IntArray(33) { (16383.0 * (it / 32.0) * (it / 32.0)).toInt() }
         val rgb = IntArray(3)
-        val probes = SyntheticRaf.neutralProbes(level.size)
+        val probes = 33 * 9 * 9 * 3
 
         // Every brightness is walked, not just a few
         val tops = (0 until probes).map {

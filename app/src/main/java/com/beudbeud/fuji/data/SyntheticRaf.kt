@@ -113,19 +113,9 @@ object SyntheticRaf {
         val level = IntArray(steps) {
             (MAX * (it.toDouble() / (steps - 1)).pow(2.2)).roundToInt().coerceIn(0, MAX)
         }
-        // The fan walks its own, finer ladder. Sharing the sweep's 33 brightnesses
-        // left the neutral axis measured at the top and empty below: a real export
-        // came back ##.........##.....##..###########, eleven solid nodes of
-        // highlight against nine consecutive holes in the shadows. Eighty-one
-        // ratio pairs per brightness was the wrong way round — one of them is
-        // right and the rest are spent, while brightness is what the axis is
-        // short of.
-        val probe = IntArray(PROBE_STEPS) {
-            (MAX * (it.toDouble() / (PROBE_STEPS - 1)).pow(2.2)).roundToInt().coerceIn(0, MAX)
-        }
         val site = Array(6) { y -> IntArray(6) { x -> layout.pattern[((y + PHASE) % 6) * 6 + (x + PHASE) % 6].toInt() } }
         val combinations = steps * steps * steps
-        val neutrals = neutralProbes(PROBE_STEPS)
+        val neutrals = steps * GAINS * GAINS * ORIENTATIONS
         val spare = cols * rows - combinations
         val rgb = IntArray(3)
         // Says plainly that a chart was painted, and on what geometry — otherwise
@@ -149,7 +139,7 @@ object SyntheticRaf {
                     rgb[1] = level[(n / steps) % steps]
                     rgb[2] = level[n / (steps * steps)]
                 } else {
-                    neutralProbe((n - combinations) % neutrals, probe, rgb)
+                    neutralProbe((n - combinations) % neutrals, level, rgb)
                 }
                 for (dy in 0 until patchPx) {
                     val y = patchRow * patchPx + dy
@@ -167,29 +157,13 @@ object SyntheticRaf {
         return true
     }
 
-    /**
-     * Ratios either side of what a camera's own channel gains need — measured at
-     * about half the top for red and two thirds for blue. The span used to run
-     * 0.35 to 1.0 in nine steps, spending most of them where no camera's gains
-     * are and landing 0.081 apart; narrowed it aims 0.067 apart with seven, and
-     * pays for the brightness resolution the axis actually wanted.
-     */
-    private const val GAINS = 7
-    private const val RATIO_MIN = 0.40
-    private const val RATIO_MAX = 0.80
+    /** Ratios either side of what a camera's own channel gains need. */
+    private const val GAINS = 9
+    private const val RATIO_MIN = 0.35
+    private const val RATIO_MAX = 1.0
 
     /** Green on top, then red, then blue: the fan reaches neutral from every side. */
     private const val ORIENTATIONS = 3
-
-    /**
-     * Brightnesses the fan walks, against the cube sweep's 33. Twice the ladder
-     * for two thirds of the ratio pairs, which fits the spare patches: 65·7·7·3
-     * is 9555 of the 9999 the sweep leaves free.
-     */
-    private const val PROBE_STEPS = 65
-
-    /** How many probes a fan of [steps] brightnesses comes to. */
-    internal fun neutralProbes(steps: Int) = steps * GAINS * GAINS * ORIENTATIONS
 
     /**
      * Fills [rgb] with probe number [n] of the neutral fan.
