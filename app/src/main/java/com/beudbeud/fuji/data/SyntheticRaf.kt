@@ -107,13 +107,56 @@ object SyntheticRaf {
     }
 
     /**
+     * What one step of the camera's white balance shift does to a channel gain.
+     *
+     * Measured on an X-T30 III from three RAFs shot in Daylight, reading the
+     * WB_GRBLevels the body records for each — the shift is folded into those
+     * gains rather than kept beside them:
+     *
+     * ```
+     * R+0 B+0   302  567  536
+     * R+9 B-9   302 1050  307
+     * R-9 B+9   302  307  803
+     * ```
+     *
+     * Taken from the rising direction only. Both falling legs land on 307, which
+     * is a gain of 1.017 times green's, and the blue one should have been at 358
+     * — a floor rather than a coincidence. Red's falling leg agrees with its
+     * rising one to 0.03%, which is what says the law is a ratio per step at all.
+     *
+     * Calibration knobs: one body, one white balance mode, and the assumption
+     * that the step is the same wherever the mode starts from.
+     */
+    private const val SHIFT_RED = 1.0709
+    private const val SHIFT_BLUE = 1.0459
+
+    /** The channel gains a shift of [red] and [blue] steps comes to. */
+    fun shiftGains(red: Int, blue: Int): DoubleArray =
+        doubleArrayOf(SHIFT_RED.pow(red), SHIFT_BLUE.pow(blue))
+
+    /**
      * Paints [steps]^3 colours as [patchPx]-wide patches, in place. Returns false
      * when the donor is compressed or otherwise not one we can rewrite.
      *
      * [patchPx] must be a multiple of 6 so every patch holds whole mosaic tiles
      * and is therefore a single flat colour.
+     *
+     * [gainR] and [gainB] scale the signal in those channels, which is exactly
+     * what a white balance shift does — the body will not accept the setting
+     * during conversion, but the photosites are ours to write, so the shift can
+     * be painted in instead of asked for. [headroom] holds the ladder down by
+     * the largest gain either pass will use, so that nothing clips and both
+     * passes measure the same colours: it has to be the same on the shifted
+     * chart and the unshifted one it is compared against.
      */
-    fun chart(raf: ByteArray, patchPx: Int = 24, steps: Int = 33): Boolean {
+    fun chart(
+        raf: ByteArray,
+        patchPx: Int = 24,
+        steps: Int = 33,
+        gainR: Double = 1.0,
+        gainB: Double = 1.0,
+        headroom: Double = maxOf(1.0, gainR, gainB),
+    ): Boolean {
         require(patchPx % 6 == 0) { "patch must tile the 6x6 mosaic" }
         val layout = layout(raf) ?: return false
         val cols = layout.width / patchPx
@@ -125,8 +168,9 @@ object SyntheticRaf {
         // *rendered* patches evenly instead of piling them into the highlights,
         // and the ladder starts at black so that every rung is a signal rather
         // than a differently-worded nothing.
+        val span = (MAX - BLACK) / maxOf(1.0, headroom)
         val level = IntArray(steps) {
-            (BLACK + (MAX - BLACK) * (it.toDouble() / (steps - 1)).pow(2.2))
+            (BLACK + span * (it.toDouble() / (steps - 1)).pow(2.2))
                 .roundToInt().coerceIn(0, MAX)
         }
         val site = Array(6) { y -> IntArray(6) { x -> layout.pattern[((y + PHASE) % 6) * 6 + (x + PHASE) % 6].toInt() } }
@@ -140,12 +184,22 @@ object SyntheticRaf {
         // fewer patches than colours the sweep never reaches the last ones.
         DebugLog.log(
             "chart: ${cols}x$rows patches of ${patchPx}px, $combinations colours" +
+                (if (gainR != 1.0 || gainB != 1.0) {
+                    ", wb shift painted in R x%.3f B x%.3f".format(java.util.Locale.US, gainR, gainB)
+                } else "") +
+                (if (headroom > 1.0) ", ceiling held down x%.3f".format(java.util.Locale.US, headroom) else "") +
                 when {
                     spare < 0 -> " — TRUNCATED, only ${cols * rows} fit"
                     else -> ", ${minOf(spare, neutrals)} of $neutrals neutral probes"
                 }
         )
 
+        /** The shift acts on signal, so it multiplies what sits above black. */
+        fun shifted(v: Int, gain: Double) =
+            if (gain == 1.0) v
+            else (BLACK + (v - BLACK) * gain).roundToInt().coerceIn(0, MAX)
+
+        val out = IntArray(3)
         var patch = 0
         for (patchRow in 0 until rows) {
             for (patchCol in 0 until cols) {
@@ -157,12 +211,15 @@ object SyntheticRaf {
                 } else {
                     neutralProbe((n - combinations) % neutrals, level, rgb)
                 }
+                out[0] = shifted(rgb[0], gainR)
+                out[1] = rgb[1]
+                out[2] = shifted(rgb[2], gainB)
                 for (dy in 0 until patchPx) {
                     val y = patchRow * patchPx + dy
                     val row = site[y % 6]
                     var i = layout.pixels + (y * layout.width + patchCol * patchPx) * 2
                     for (dx in 0 until patchPx) {
-                        val v = rgb[row[dx % 6]]
+                        val v = out[row[dx % 6]]
                         raf[i] = (v and 0xFF).toByte()
                         raf[i + 1] = (v shr 8).toByte()
                         i += 2

@@ -118,6 +118,39 @@ class SyntheticRafTest {
         assertEquals(16383, rebuilt.site(0, 24 + 2))
     }
 
+    /**
+     * The body refuses the white balance shift during conversion, but the shift is
+     * a gain on the red and blue signal and the photosites are ours to write. It
+     * has to land on the signal above black, and the ladder has to come down by
+     * the same amount on both charts — a shifted chart that clipped where its
+     * reference did not would differ in more than the shift.
+     */
+    @Test
+    fun theWhiteBalanceShiftIsPaintedOntoTheSignal() {
+        val gains = SyntheticRaf.shiftGains(red = 9, blue = -9)
+        // Red at +9 is the 567 -> 1050 the body recorded, straight off the tag.
+        assertEquals(1.851, gains[0], 0.01)
+        // Blue at -9 is the rising rate inverted, 1.499 the other way. The body
+        // recorded 536 -> 307, or 0.573, which is lower than any rate explains
+        // and equal to what red's falling leg landed on — a floor at green's own
+        // gain, not a measurement, so the model does not follow it down there.
+        assertEquals(0.667, gains[1], 0.01)
+
+        val plain = donor().also {
+            SyntheticRaf.chart(it, patchPx = 24, steps = 2, headroom = gains[0])
+        }
+        val shifted = donor().also {
+            SyntheticRaf.chart(it, patchPx = 24, steps = 2, gainR = gains[0], gainB = gains[1])
+        }
+        // Patch 1 is full red; site (0,2) is a red photosite at this phase.
+        val before = plain.site(0, 24 + 2)
+        val after = shifted.site(0, 24 + 2)
+        assertEquals(BLACK + (before - BLACK) * gains[0], after.toDouble(), 1.0)
+        assertTrue("the shift must not clip: $after", after <= 16383)
+        // Green is untouched, and the held-down ceiling is the same on both.
+        assertEquals(plain.site(0, 48 + 0), shifted.site(0, 48 + 0))
+    }
+
     @Test
     fun everyCubeColourGetsAPatchWhenThereIsRoom() {
         // 3 x 2 patches can only hold 6 of the 8 two-level combinations, so the

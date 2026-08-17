@@ -217,12 +217,23 @@ fun LutExportDialog(recipe: Recipe, onDismiss: () -> Unit) {
                             )
                         }
 
+                        // The white balance shift is a gain on the red and blue
+                        // signal and nothing else, so it can be painted into the
+                        // chart even though the body refuses to be told about it
+                        // during conversion. Both charts are held down by the
+                        // larger gain, or the shifted one would clip where the
+                        // reference does not and the pair would differ in more
+                        // than the shift.
+                        val gains = SyntheticRaf.shiftGains(recipe.wbShiftRed, recipe.wbShiftBlue)
+                        val bakeShift = synthetic && (gains[0] != 1.0 || gains[1] != 1.0)
+                        val headroom = maxOf(1.0, gains[0], gains[1])
+
                         // The donor only lends its container: the sensor data is
                         // replaced by a chart that sweeps the whole cube, so the
                         // measurement stops depending on what was photographed.
                         if (synthetic) {
                             status = context.getString(R.string.lut_painting_chart)
-                            if (!SyntheticRaf.chart(raf)) {
+                            if (!SyntheticRaf.chart(raf, headroom = headroom)) {
                                 throw java.io.IOException(context.getString(R.string.raf_compressed))
                             }
                         } else {
@@ -277,13 +288,14 @@ fun LutExportDialog(recipe: Recipe, onDismiss: () -> Unit) {
                         // would make the result depend on whether the second pass
                         // reused the loaded RAF or re-sent it.
                         // White balance is matched to the reference rather than
-                        // sent: the profile cannot carry the mode, so the R/B
-                        // shifts tuned to sit on top of that mode would be half of
-                        // a coupled pair. On an X-T30 III this changes nothing —
-                        // converting the same chart with the shifts at -6/-4 and
-                        // at 0/0 gave identical output — because in-camera
-                        // conversion ignores white balance outright. It stays as
-                        // the honest thing to send, not as a fix for anything.
+                        // sent: in-camera conversion ignores it outright, so
+                        // sending it would be half of a coupled pair with the mode
+                        // the profile cannot carry. The R/B shift is not lost with
+                        // it — it is painted into the chart above instead, which is
+                        // the same thing the body would have done and the only part
+                        // of white balance that belongs in the cube at all: the
+                        // mode is a correction the raw developer makes for itself,
+                        // the shift is the recipe's own cast.
                         val forLut = recipe.copy(
                             grainEffect = Strength.OFF,
                             // Clarity is local contrast: what it does to a pixel
@@ -314,16 +326,22 @@ fun LutExportDialog(recipe: Recipe, onDismiss: () -> Unit) {
                         status = context.getString(R.string.lut_rendering_base)
                         val beforeJpeg = develop(context, camera, raf, neutral, upload = true)
                         status = context.getString(R.string.lut_rendering_recipe)
-                        // The camera still holds the RAF from the first pass, so the
-                        // second one usually costs no upload at all — that is tens of
-                        // megabytes and most of the export's wall clock. Not every
-                        // body may keep it, hence the retry.
-                        val afterJpeg =
+                        val afterJpeg = if (bakeShift) {
+                            // Repainted in place rather than copied: a second chart
+                            // is a second 55MB array, and this one runs on a phone.
+                            SyntheticRaf.chart(raf, gainR = gains[0], gainB = gains[1])
+                            develop(context, camera, raf, forLut, upload = true)
+                        } else {
+                            // The camera still holds the RAF from the first pass, so
+                            // the second one usually costs no upload at all — that is
+                            // tens of megabytes and most of the export's wall clock.
+                            // Not every body may keep it, hence the retry.
                             runCatching { develop(context, camera, raf, forLut, upload = false) }
                                 .getOrElse {
                                     DebugLog.log("recipe pass needed the RAF again: ${it.message}")
                                     develop(context, camera, raf, forLut, upload = true)
                                 }
+                        }
 
                         status = context.getString(R.string.lut_building)
                         val measured = withContext(Dispatchers.Default) {
@@ -357,15 +375,19 @@ fun LutExportDialog(recipe: Recipe, onDismiss: () -> Unit) {
                         // and a reason repeated per line is a paragraph nobody
                         // reads in a file that is a megabyte of numbers.
                         val dropped = buildList {
-                            if (recipe.whiteBalance != WhiteBalance.AUTO ||
-                                recipe.wbShiftRed != 0 || recipe.wbShiftBlue != 0
-                            ) {
+                            if (recipe.whiteBalance != WhiteBalance.AUTO) {
                                 add(
-                                    "white balance (${recipe.whiteBalance.name}" +
+                                    "white balance mode (${recipe.whiteBalance.name}" +
                                         (recipe.kelvin?.takeIf {
                                             recipe.whiteBalance == WhiteBalance.KELVIN
-                                        }?.let { " ${it}K" } ?: "") +
-                                        " R${formatSigned(recipe.wbShiftRed)}" +
+                                        }?.let { " ${it}K" } ?: "") + ")"
+                                )
+                            }
+                            // Only when it could not be painted in: without a chart
+                            // there are no photosites of ours to put it on.
+                            if (!bakeShift && (recipe.wbShiftRed != 0 || recipe.wbShiftBlue != 0)) {
+                                add(
+                                    "white balance shift (R${formatSigned(recipe.wbShiftRed)}" +
                                         " B${formatSigned(recipe.wbShiftBlue)})"
                                 )
                             }
@@ -382,9 +404,14 @@ fun LutExportDialog(recipe: Recipe, onDismiss: () -> Unit) {
                                 add("INPUT: sRGB — set the application's colour space to sRGB, not Rec.709")
                                 add(
                                     "BASE: apply on a Provia render at ${range.label}" +
-                                        if (priority != DRangePriority.OFF) {
+                                        (if (priority != DRangePriority.OFF) {
                                             ", D-Range Priority ${priority.name.lowercase()}"
-                                        } else ""
+                                        } else "") +
+                                        (if (bakeShift) {
+                                            ", white balance shift R" +
+                                                "${formatSigned(recipe.wbShiftRed)} B" +
+                                                "${formatSigned(recipe.wbShiftBlue)} already in this cube"
+                                        } else "")
                                 )
                                 if (dropped.isNotEmpty()) {
                                     add("NOT IN THIS CUBE: ${dropped.joinToString("; ")}")
