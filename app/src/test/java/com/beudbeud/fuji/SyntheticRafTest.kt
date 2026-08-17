@@ -10,6 +10,9 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class SyntheticRafTest {
+    /** What a photosite reads in the dark; the sweep's darkest rung, not zero. */
+    private val BLACK = 1022
+
     // The real X-Trans mosaic, 0=red 1=green 2=blue
     private val pattern = byteArrayOf(
         1, 0, 2, 1, 2, 0,
@@ -83,15 +86,16 @@ class SyntheticRafTest {
         assertTrue(header.contentEquals(raf.copyOfRange(0, pixelsAt)))
 
         // 3 x 2 patches; with two levels the sweep runs 0,0,0 then 1,0,0 ...
-        // Patch 0 is the all-zero corner of the cube.
-        assertEquals(0, raf.site(0, 0))
-        assertEquals(0, raf.site(7, 13))
+        // Patch 0 is the darkest corner of the cube, which is the black level
+        // rather than zero — below it a photosite carries no signal to vary.
+        assertEquals(BLACK, raf.site(0, 0))
+        assertEquals(BLACK, raf.site(7, 13))
 
         // Patch 1 is full red. At phase 1, site (0,2) of a patch is a red
         // photosite, (0,0) is green and (0,5) is blue.
         assertEquals(16383, raf.site(0, 24 + 2))
-        assertEquals(0, raf.site(0, 24 + 0))
-        assertEquals(0, raf.site(0, 24 + 5))
+        assertEquals(BLACK, raf.site(0, 24 + 0))
+        assertEquals(BLACK, raf.site(0, 24 + 5))
         // ...and it repeats every 6 sites, so the patch really is one flat colour
         assertEquals(16383, raf.site(6, 24 + 8))
         assertEquals(16383, raf.site(12, 24 + 14))
@@ -121,10 +125,10 @@ class SyntheticRafTest {
         val raf = donor()
         SyntheticRaf.chart(raf, patchPx = 24, steps = 2)
         val reds = (0 until 2).flatMap { r -> (0 until 3).map { c -> raf.site(r * 24, c * 24 + 2) } }
-        assertEquals(listOf(0, 16383, 0, 16383, 0, 16383), reds)
+        assertEquals(listOf(BLACK, 16383, BLACK, 16383, BLACK, 16383), reds)
         // green is the second axis: it turns on for patches 2 and 3
         val greens = (0 until 2).flatMap { r -> (0 until 3).map { c -> raf.site(r * 24, c * 24) } }
-        assertEquals(listOf(0, 0, 16383, 16383, 0, 0), greens)
+        assertEquals(listOf(BLACK, BLACK, 16383, 16383, BLACK, BLACK), greens)
         assertNotNull(SyntheticRaf.layout(raf))
     }
 
@@ -137,7 +141,7 @@ class SyntheticRafTest {
      */
     @Test
     fun theNeutralFanBracketsTheRatioThatRendersGrey() {
-        val level = IntArray(33) { (16383.0 * (it / 32.0) * (it / 32.0)).toInt() }
+        val level = IntArray(33) { BLACK + ((16383.0 - BLACK) * (it / 32.0) * (it / 32.0)).toInt() }
         val rgb = IntArray(3)
         val probes = 33 * 9 * 9 * 3
 
@@ -149,12 +153,14 @@ class SyntheticRafTest {
 
         // ...and at full brightness some probe sits within a step of the ratio a
         // typical camera needs, on both axes at once.
-        val bright = level.last().toDouble()
+        // Ratios are of the signal above black, which is what the camera's own
+        // channel gains act on.
+        val bright = (level.last() - BLACK).toDouble()
         val close = (0 until probes).count {
             SyntheticRaf.neutralProbe(it, level, rgb)
             rgb[1] == level.last() &&
-                kotlin.math.abs(rgb[0] / bright - 0.50) < 0.05 &&
-                kotlin.math.abs(rgb[2] / bright - 0.67) < 0.05
+                kotlin.math.abs((rgb[0] - BLACK) / bright - 0.50) < 0.05 &&
+                kotlin.math.abs((rgb[2] - BLACK) / bright - 0.67) < 0.05
         }
         assertTrue("no probe brackets the neutral ratio", close > 0)
 

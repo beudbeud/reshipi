@@ -32,6 +32,19 @@ object SyntheticRaf {
     private const val MAX = 16383
 
     /**
+     * The count a photosite reads in the dark. Signal is what sits above it, and
+     * everything at or below it develops to the same black.
+     *
+     * The chart was painted from 0 up, so ten of its 33 levels per axis landed
+     * under this and rendered identically — a third of every axis wasted, and
+     * nine consecutive holes in the measured grey axis that no amount of extra
+     * probes could fill, because there was nothing down there to distinguish.
+     * Read from the donor's own BlackLevel tag (1022 on an X-T30 III); a
+     * calibration knob if another body differs.
+     */
+    private const val BLACK = 1022
+
+    /**
      * Where the mosaic sits relative to the start of the readout. Measured on an
      * X-T30 III by rebuilding the image at all 36 phases and correlating each
      * against the file's own preview JPEG (0.723 for this one, 0.689 next best).
@@ -107,11 +120,14 @@ object SyntheticRaf {
         val rows = layout.height / patchPx
         if (cols < 1 || rows < 1) return false
 
-        // Raw counts are linear light; the camera's tone curve lifts the shadows
-        // hard. Spacing the levels by a gamma spreads the *rendered* patches
-        // evenly instead of piling them into the highlights.
+        // Raw counts are linear light above the black level; the camera's tone
+        // curve lifts the shadows hard. Spacing the levels by a gamma spreads the
+        // *rendered* patches evenly instead of piling them into the highlights,
+        // and the ladder starts at black so that every rung is a signal rather
+        // than a differently-worded nothing.
         val level = IntArray(steps) {
-            (MAX * (it.toDouble() / (steps - 1)).pow(2.2)).roundToInt().coerceIn(0, MAX)
+            (BLACK + (MAX - BLACK) * (it.toDouble() / (steps - 1)).pow(2.2))
+                .roundToInt().coerceIn(0, MAX)
         }
         val site = Array(6) { y -> IntArray(6) { x -> layout.pattern[((y + PHASE) % 6) * 6 + (x + PHASE) % 6].toInt() } }
         val combinations = steps * steps * steps
@@ -183,8 +199,18 @@ object SyntheticRaf {
     internal fun neutralProbe(n: Int, level: IntArray, rgb: IntArray) {
         val steps = level.size
         val top = level[n % steps]
-        fun ratio(i: Int) =
-            (top * (RATIO_MIN + (RATIO_MAX - RATIO_MIN) * i / (GAINS - 1))).roundToInt().coerceIn(0, MAX)
+        // The gains act on signal, so the ratio does too: a fraction of the count
+        // rather than of the signal is not the fraction it says it is. At a top of
+        // 3565 the 0.50 rung was landing on 1782, which above a black of 1022 is a
+        // signal ratio of 0.30 — the fan has been aiming somewhere else than where
+        // it was pointed, worst of all where the signal is smallest.
+        // Held at [top] as well as at zero: a ladder that started below black
+        // would put the ratio above the channel it is a ratio of, and the
+        // orientation below — which channel leads — would silently invert.
+        fun ratio(i: Int) = (
+            BLACK + (top - BLACK) *
+                (RATIO_MIN + (RATIO_MAX - RATIO_MIN) * i / (GAINS - 1))
+            ).roundToInt().coerceIn(0, top)
         val first = ratio((n / steps) % GAINS)
         val second = ratio((n / (steps * GAINS)) % GAINS)
         // Which channel sits at the top decides which side of neutral the probe
