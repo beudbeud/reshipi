@@ -34,6 +34,7 @@ import com.beudbeud.fuji.data.SyntheticRaf
 import com.beudbeud.fuji.data.ptp.FujiProp
 import com.beudbeud.fuji.data.ptp.patchProfile
 import com.beudbeud.fuji.data.ptp.profileDump
+import com.beudbeud.fuji.data.ptp.profileParams
 import com.beudbeud.fuji.model.CAMERA_MODELS
 import com.beudbeud.fuji.model.DRangePriority
 import com.beudbeud.fuji.model.DynamicRange
@@ -295,17 +296,18 @@ fun LutExportDialog(recipe: Recipe, onDismiss: () -> Unit) {
                         )
 
                         status = context.getString(R.string.lut_rendering_base)
-                        val beforeJpeg = develop(camera, raf, neutral, upload = true)
+                        val beforeJpeg = develop(context, camera, raf, neutral, upload = true)
                         status = context.getString(R.string.lut_rendering_recipe)
                         // The camera still holds the RAF from the first pass, so the
                         // second one usually costs no upload at all — that is tens of
                         // megabytes and most of the export's wall clock. Not every
                         // body may keep it, hence the retry.
-                        val afterJpeg = runCatching { develop(camera, raf, forLut, upload = false) }
-                            .getOrElse {
-                                DebugLog.log("recipe pass needed the RAF again: ${it.message}")
-                                develop(camera, raf, forLut, upload = true)
-                            }
+                        val afterJpeg =
+                            runCatching { develop(context, camera, raf, forLut, upload = false) }
+                                .getOrElse {
+                                    DebugLog.log("recipe pass needed the RAF again: ${it.message}")
+                                    develop(context, camera, raf, forLut, upload = true)
+                                }
 
                         status = context.getString(R.string.lut_building)
                         val measured = withContext(Dispatchers.Default) {
@@ -488,11 +490,15 @@ fun LutExportDialog(recipe: Recipe, onDismiss: () -> Unit) {
     )
 }
 
+/** The profile slot holding the dynamic range, as 100 / 200 / 400. */
+private const val DR_SLOT = 6
+
 /**
  * Apply [recipe], convert, and bring back the JPEG. [upload] sends the RAF
  * first; the second pass tries to reuse the one the camera already holds.
  */
 private fun develop(
+    context: android.content.Context,
     camera: com.beudbeud.fuji.data.ptp.FujiCamera,
     raf: ByteArray,
     recipe: Recipe,
@@ -510,6 +516,30 @@ private fun develop(
             "${recipe.filmSimulation.label}]: ${profileDump(patched)}"
     )
     camera.setProfile(patched)
+    // Written is not accepted. The camera silently clamps a slot it will not
+    // take — index 12 is one it always clamps, whatever white balance we hand
+    // it — and every rejection so far has been found by noticing a render that
+    // looked wrong, not by being told. Read the profile back and name the slots
+    // that did not survive.
+    val wanted = profileParams(patched)
+    val got = profileParams(camera.getProfile(quiet = true))
+    val refused = wanted.indices.filter { it < got.size && wanted[it] != got[it] }
+    if (refused.isNotEmpty()) {
+        DebugLog.log(
+            "profile refused: " + refused.joinToString(" ") { "$it=${wanted[it]}→${got[it]}" }
+        )
+    }
+    // The dynamic range is the one rejection that cannot be shrugged off: a RAF
+    // converts at the range it was shot at or below, never above, so a DR400
+    // recipe on a DR100 frame comes back as a DR100 render that measures
+    // perfectly and is a cube of a rendering nobody asked for. Both passes send
+    // the same range, so this fails on the first of them, before the second
+    // conversion is spent.
+    if (DR_SLOT in refused) {
+        throw java.io.IOException(
+            context.getString(R.string.lut_dr_refused, wanted[DR_SLOT], got[DR_SLOT])
+        )
+    }
     camera.triggerConversion()
     return camera.waitForResult()
 }

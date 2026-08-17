@@ -172,4 +172,5 @@
     <string name="lut_caveat">Les couleurs absentes de l\'image sont interpolées. Une photo variée et colorée donne une meilleure LUT. Clarté et grain sont des effets spatiaux, non représentables dans une LUT. La balance des blancs et la plage dynamique sont écartées elles aussi : la conversion RAW du boîtier refuse de changer la balance, et les deux rendus doivent partager la même plage dynamique sous peine que sa courbe de tons transforme ce déséquilibre en dominante colorée. Une recette bâtie sur l\'une ou l\'autre ne rendra pas pareil à travers sa LUT.</string>
     <string name="lut_save">Enregistrer le .cube</string>
     <string name="lut_gen_unsupported">La création de LUT n\'est pas encore compatible avec le %1$s — seuls les boîtiers X-Trans V (X-T30 III, X-T5, X100VI…) sont pris en charge pour l\'instant.</string>
+    <string name="lut_dr_refused">L\'appareil a refusé le DR%1$d et a converti en DR%2$d — un RAF ne se convertit qu\'à la plage dynamique de sa prise de vue, ou en dessous. Prends une photo en DR%1$d et sers-t\'en comme porteur pour la mire.</string>
 </resources>
