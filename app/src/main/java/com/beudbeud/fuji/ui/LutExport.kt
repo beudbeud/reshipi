@@ -7,6 +7,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
@@ -412,7 +414,15 @@ fun LutExportDialog(recipe: Recipe, onDismiss: () -> Unit) {
         onDismissRequest = { if (!busy) onDismiss() },
         title = { Text(stringResource(R.string.lut_export)) },
         text = {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            // The dialog's actions sit below this content and are pushed off the
+            // screen by it, silently — a hint long enough to explain why the
+            // container wants DR400, plus the checkbox and the container button,
+            // is enough on a short screen or at a large font scale. Scrolling the
+            // content keeps the buttons where they belong whatever it holds.
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+            ) {
                 if (busy) CircularProgressIndicator(Modifier.padding(8.dp))
                 status?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
                 if (!busy && cube == null && status == null) {
