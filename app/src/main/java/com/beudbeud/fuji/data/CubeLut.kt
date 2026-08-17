@@ -87,7 +87,15 @@ class CubeLut(val size: Int = 33) {
                 val wg = wr * (if (j == 0) 1.0 - tg else tg)
                 for (k in 0..1) {
                     corner[n] = wg * (if (k == 0) 1.0 - tb else tb)
-                    weight[index(r0 + i, g0 + j, b0 + k)] += sw * corner[n]
+                    // Unweighted on purpose. This is the tally coverage and the
+                    // trust floor are read off, and the floor is a share of the
+                    // average node's total — so boosting greys here lifts the
+                    // average, lifts the bar with it, and drops colour nodes that
+                    // were genuinely measured. It cost 1278 cells of 35937 on a
+                    // real export while the grey axis did not move at all. What a
+                    // grey is worth belongs to the fit, not to the count of what
+                    // was seen.
+                    weight[index(r0 + i, g0 + j, b0 + k)] += corner[n]
                     n++
                 }
             }
