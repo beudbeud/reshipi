@@ -406,7 +406,14 @@ class FujiCamera private constructor(
                     val (getCode, jpeg) = sendCommand(PtpOp.GET_OBJECT, intArrayOf(handle), timeoutMs = 60_000)
                     if (getCode != PtpResp.OK) throw IOException("GetObject failed: 0x${getCode.toString(16)}")
                     runCatching { sendCommand(PtpOp.DELETE_OBJECT, intArrayOf(handle)) }
-                    DebugLog.log("conversion result: ${jpeg.size / 1024}KB")
+                    // Hashed as well as sized: the size is rounded to a kilobyte,
+                    // and the question a repeated conversion usually asks is
+                    // whether a setting did anything at all — which needs "the
+                    // same render" to be distinguishable from "a similar one".
+                    DebugLog.log(
+                        "conversion result: ${jpeg.size / 1024}KB " +
+                            "#%08x".format(jpeg.contentHashCode())
+                    )
                     return jpeg
                 }
             }
