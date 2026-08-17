@@ -33,6 +33,7 @@ import com.beudbeud.fuji.data.CubeLut
 import com.beudbeud.fuji.data.DebugLog
 import com.beudbeud.fuji.data.DonorRaf
 import com.beudbeud.fuji.data.RafFile
+import com.beudbeud.fuji.data.RawDeveloper
 import com.beudbeud.fuji.data.SyntheticRaf
 import com.beudbeud.fuji.data.ptp.FujiProp
 import com.beudbeud.fuji.data.ptp.patchProfile
@@ -373,15 +374,9 @@ fun LutExportDialog(recipe: Recipe, onDismiss: () -> Unit) {
                                 )
                             }
                             if (recipe.wbShiftRed != 0 || recipe.wbShiftBlue != 0) {
-                                // Named in gains as well as in steps: "R-6" means
-                                // nothing to a raw developer, a red channel at 0.74
-                                // of its weight is something anyone can dial.
-                                val g = SyntheticRaf.shiftGains(recipe.wbShiftRed, recipe.wbShiftBlue)
                                 add(
                                     "white balance shift (R${formatSigned(recipe.wbShiftRed)}" +
-                                        " B${formatSigned(recipe.wbShiftBlue)}" +
-                                        ", red x%.2f blue x%.2f before this cube)"
-                                            .format(java.util.Locale.US, g[0], g[1])
+                                        " B${formatSigned(recipe.wbShiftBlue)})"
                                 )
                             }
                             if (recipe.grainEffect != Strength.OFF) add("grain")
@@ -405,6 +400,22 @@ fun LutExportDialog(recipe: Recipe, onDismiss: () -> Unit) {
                                 if (dropped.isNotEmpty()) {
                                     add("NOT IN THIS CUBE: ${dropped.joinToString("; ")}")
                                 }
+                                // What to do about it, in the software the user
+                                // actually has. Naming the steps beats describing
+                                // the problem, and only one of these applications
+                                // can be told a channel gain at all.
+                                addAll(
+                                    RawDeveloper.of(context).instructions(
+                                        wb = recipe.whiteBalance
+                                            .takeIf { it != WhiteBalance.AUTO }?.name,
+                                        shift = (recipe.wbShiftRed to recipe.wbShiftBlue)
+                                            .takeIf { it.first != 0 || it.second != 0 }
+                                            ?.let {
+                                                val g = SyntheticRaf.shiftGains(it.first, it.second)
+                                                g[0] to g[1]
+                                            },
+                                    )
+                                )
                             },
                         )
                         status = null

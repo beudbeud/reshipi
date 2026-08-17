@@ -174,4 +174,10 @@
     <string name="lut_save">Save .cube</string>
     <string name="lut_gen_unsupported">LUT creation is not compatible with the %1$s yet — only X-Trans V bodies (X-T30 III, X-T5, X100VI…) are supported for now.</string>
     <string name="lut_dr_refused">The camera refused DR%1$d and converted at DR%2$d instead — a RAF can only be converted at the dynamic range it was shot at, or below. Shoot one frame at DR%1$d and use it as the chart carrier.</string>
+    <string name="settings">Settings</string>
+    <string name="dev_hint">Which software you apply exported LUTs in. A .cube cannot say what encoding it was measured in, and white balance is never inside it — the export writes the steps for the one you pick.</string>
+    <string name="dev_darktable">darktable — exact: it takes channel coefficients</string>
+    <string name="dev_resolve">DaVinci Resolve — exact, in an sRGB node</string>
+    <string name="dev_lightroom">Lightroom / Camera Raw — approximate</string>
+    <string name="dev_other">Other / not sure</string>
 </resources>

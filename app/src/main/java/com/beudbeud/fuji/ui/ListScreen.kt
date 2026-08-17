@@ -105,6 +105,7 @@ fun ListScreen(
     var menuOpen by remember { mutableStateOf(false) }
     var addOpen by remember { mutableStateOf(false) }
     var showLogs by remember { mutableStateOf(false) }
+    var showSettings by remember { mutableStateOf(false) }
     var showTextImport by remember { mutableStateOf(false) }
     var showCameraImport by remember { mutableStateOf(false) }
     val snackbar = remember { SnackbarHostState() }
@@ -276,6 +277,8 @@ fun ListScreen(
         )
     }
 
+    if (showSettings) SettingsDialog(onDismiss = { showSettings = false })
+
     if (showLogs) {
         var logText by remember { mutableStateOf(DebugLog.read()) }
         AlertDialog(
@@ -374,6 +377,10 @@ fun ListScreen(
                                     menuOpen = false
                                     exportLauncher.launch("reshipi-backup-${LocalDate.now()}.zip")
                                 },
+                            )
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.settings)) },
+                                onClick = { menuOpen = false; showSettings = true },
                             )
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.debug_logs)) },
