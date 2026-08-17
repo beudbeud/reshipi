@@ -35,11 +35,13 @@ import com.beudbeud.fuji.data.ptp.FujiProp
 import com.beudbeud.fuji.data.ptp.patchProfile
 import com.beudbeud.fuji.data.ptp.profileDump
 import com.beudbeud.fuji.model.CAMERA_MODELS
+import com.beudbeud.fuji.model.DRangePriority
 import com.beudbeud.fuji.model.DynamicRange
 import com.beudbeud.fuji.model.FilmSimulation
 import com.beudbeud.fuji.model.Generation
 import com.beudbeud.fuji.model.Recipe
 import com.beudbeud.fuji.model.Strength
+import com.beudbeud.fuji.model.WhiteBalance
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -230,11 +232,25 @@ fun LutExportDialog(recipe: Recipe, onDismiss: () -> Unit) {
                         } else {
                             recipe.dynamicRange
                         }
+                        // D-Range Priority takes the dynamic range and the
+                        // highlight/shadow tones over outright — the menus grey out
+                        // and it drives them instead. Carrying it in one pass and
+                        // not the other therefore reopens exactly the gap the shared
+                        // dynamic range above closes, so both passes get it and it
+                        // cancels. Auto is pinned off for the same reason DR Auto is:
+                        // the camera decides it per scene, which is not a fixed
+                        // transform and cannot be baked into a cube.
+                        val priority = if (recipe.dRangePriority == DRangePriority.AUTO) {
+                            DRangePriority.OFF
+                        } else {
+                            recipe.dRangePriority
+                        }
                         // Provia with every adjustment at rest — the "before" a LUT
                         // is meant to be applied on top of.
                         val neutral = Recipe(
                             filmSimulation = FilmSimulation.PROVIA,
                             dynamicRange = range,
+                            dRangePriority = priority,
                         )
                         // Grain is spatial: a LUT cannot carry it, so leaving it on
                         // only scatters every patch's pixels around its true colour.
@@ -261,7 +277,17 @@ fun LutExportDialog(recipe: Recipe, onDismiss: () -> Unit) {
                             // for exactly this reason and clarity was not, though
                             // the dialog has always said neither can be captured.
                             clarity = 0,
+                            // Sharpness and noise reduction read a pixel's
+                            // neighbours just as grain and clarity do, so the same
+                            // input colour comes out one way on an edge and another
+                            // in a flat area — nothing a cube can hold. They were
+                            // left on while the reference render had them at rest,
+                            // which measured a difference on every seam and taught
+                            // the cube a colour shift that was really a halo.
+                            sharpness = 0,
+                            noiseReduction = 0,
                             dynamicRange = range,
+                            dRangePriority = priority,
                             whiteBalance = neutral.whiteBalance,
                             kelvin = null,
                             wbShiftRed = 0,
@@ -304,7 +330,46 @@ fun LutExportDialog(recipe: Recipe, onDismiss: () -> Unit) {
                         if (measured.sampled == 0L || measured.changed * 100 < measured.sampled) {
                             warning = context.getString(R.string.lut_no_change)
                         }
-                        cube = lut.toCubeText(recipe.name)
+                        // What the cube is a transform *of*, and what the camera
+                        // was never asked to put in it. Both are settings of this
+                        // export, not of the recipe, so nothing else records them.
+                        // English and unlocalised on purpose: the file outlives the
+                        // phone it was written on.
+                        val dropped = buildList {
+                            if (recipe.whiteBalance != WhiteBalance.AUTO ||
+                                recipe.wbShiftRed != 0 || recipe.wbShiftBlue != 0
+                            ) {
+                                add(
+                                    "white balance (${recipe.whiteBalance.name}" +
+                                        (recipe.kelvin?.takeIf {
+                                            recipe.whiteBalance == WhiteBalance.KELVIN
+                                        }?.let { " ${it}K" } ?: "") +
+                                        ", shift R${recipe.wbShiftRed} B${recipe.wbShiftBlue})" +
+                                        " — in-camera conversion ignores it, dial it in yourself"
+                                )
+                            }
+                            if (recipe.grainEffect != Strength.OFF) add("grain")
+                            if (recipe.clarity != 0) add("clarity ${recipe.clarity}")
+                            if (recipe.sharpness != 0) add("sharpness ${recipe.sharpness}")
+                            if (recipe.noiseReduction != 0) {
+                                add("noise reduction ${recipe.noiseReduction}")
+                            }
+                        }
+                        cube = lut.toCubeText(
+                            recipe.name,
+                            buildList {
+                                add("INPUT: sRGB — set the application's colour space to sRGB, not Rec.709")
+                                add(
+                                    "BASE: apply on a Provia render at ${range.label}" +
+                                        if (priority != DRangePriority.OFF) {
+                                            ", D-Range Priority ${priority.name.lowercase()}"
+                                        } else ""
+                                )
+                                if (dropped.isNotEmpty()) {
+                                    add("NOT IN THIS CUBE: ${dropped.joinToString("; ")}")
+                                }
+                            },
+                        )
                         status = null
                     } finally {
                         camera.close()

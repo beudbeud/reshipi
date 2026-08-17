@@ -117,4 +117,14 @@ class CubeLutTest {
         assertEquals(27, data.size)
         data.forEach { assertEquals(3, it.split(" ").size) }
     }
+
+    /** Notes say what the cube is a transform of; they must not become data rows. */
+    @Test
+    fun notesAreCommentedOut() {
+        val text = saturated(3).toCubeText("x", listOf("INPUT: sRGB", "BASE: Provia at DR400"))
+        val lines = text.trim().lines()
+        assertTrue(lines.any { it == "# INPUT: sRGB" })
+        assertTrue(lines.any { it == "# BASE: Provia at DR400" })
+        assertEquals(27, lines.count { it.matches(Regex("^[0-9].*")) })
+    }
 }
