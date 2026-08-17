@@ -113,17 +113,25 @@ object SyntheticRaf {
      * each — the shift is folded into those gains rather than kept beside them:
      *
      * ```
-     *  steps    G    R    B
-     *  R+0 B+0  302  567  536
-     *  R-4 B-4  302  494  473
-     *  R+9 B-9  302 1050  307
-     *  R-9 B+9  302  307  803
+     *  steps   R    B      counts per step, red
+     *  -9     307  307
+     *  -6     433  419     42.0
+     *  -4     494  473     30.5
+     *   0     567  536     18.3
+     *  +4     642  586     18.8
+     *  +9    1050  803     81.6
      * ```
      *
-     * A table rather than a law, because there is no law: the response is fine
-     * near zero and coarse at the ends, 18 counts per step between -4 and 0
-     * against 54 between 0 and +9. A ratio per step fitted to the ends misses
-     * -4 by 15%, which is how this table replaced one.
+     * A table rather than a law, because there is no law: the grid is symmetric
+     * and fine at the centre, 18.3 counts per step below zero against 18.8
+     * above, and opens out towards the ends. That is how a control meant to be
+     * turned by hand is drawn, and no single exponent describes it — one fitted
+     * to the ends misses -6 by 13%, and the four-point table that replaced it
+     * still missed it by 3%.
+     *
+     * The coarsest stretch left is +5 to +8, where a slope of 81.6 is being read
+     * off two points five steps apart. Recipes rarely go there; another RAF at
+     * R+7 would settle it if one ever does.
      *
      * Nothing here is discounted as unreliable either. If the body holds the
      * gain at some floor near the bottom of the grid — both -9 legs land on 307,
@@ -134,9 +142,9 @@ object SyntheticRaf {
      * that a step means the same wherever the mode starts from. More steps
      * measured is a finer table and nothing else has to change.
      */
-    private val SHIFT_STEPS = intArrayOf(-9, -4, 0, 9)
-    private val SHIFT_RED = doubleArrayOf(0.5414, 0.8712, 1.0, 1.8519)
-    private val SHIFT_BLUE = doubleArrayOf(0.5728, 0.8825, 1.0, 1.4981)
+    private val SHIFT_STEPS = intArrayOf(-9, -6, -4, 0, 4, 9)
+    private val SHIFT_RED = doubleArrayOf(0.5414, 0.7637, 0.8712, 1.0, 1.1323, 1.8519)
+    private val SHIFT_BLUE = doubleArrayOf(0.5728, 0.7817, 0.8825, 1.0, 1.0933, 1.4981)
 
     /** Straight-line between the measured steps, held at the ends. */
     private fun interpolate(steps: Int, gain: DoubleArray): Double {

@@ -130,10 +130,13 @@ class SyntheticRafTest {
         val gains = SyntheticRaf.shiftGains(red = 9, blue = -9)
         assertEquals(1.851, gains[0], 0.01)
         assertEquals(0.573, gains[1], 0.01)
-        // Halfway between two measured steps, and nowhere near what a constant
-        // ratio per step would give: -6 sits between the -9 and -4 rungs, where
-        // the grid is coarse, and an exponential fitted to the ends says 0.663.
-        assertEquals(0.740, SyntheticRaf.shiftGains(-6, 0)[0], 0.01)
+        // -6 is measured, 433 of 567, and nowhere near what fitting a law to
+        // the ends gives: an exponential says 0.663, and interpolating it from
+        // the -9 and -4 rungs before it was measured said 0.740.
+        assertEquals(0.764, SyntheticRaf.shiftGains(-6, 0)[0], 0.005)
+        // Between rungs it interpolates, and near zero the grid is close to
+        // linear so that is nearly free: -2 sits between 0 and -4.
+        assertEquals(0.936, SyntheticRaf.shiftGains(-2, 0)[0], 0.005)
         // Off the end of the grid, held rather than extrapolated.
         assertEquals(gains[0], SyntheticRaf.shiftGains(99, 0)[0], 0.0001)
     }
