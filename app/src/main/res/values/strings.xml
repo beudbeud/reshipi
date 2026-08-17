@@ -169,7 +169,7 @@
     <string name="lut_rendering_recipe">Developing with the recipe…</string>
     <string name="lut_building">Building the LUT…</string>
     <string name="lut_coverage">%1$d%% of the colour cube measured</string>
-    <string name="lut_caveat">Colours the frame did not contain are interpolated. A varied, colourful shot gives a better LUT. Clarity and grain are spatial effects and cannot be captured in a LUT. White balance and dynamic range are left out too: in-camera RAW conversion refuses to change the white balance, and both renders must share one dynamic range or its tone curve turns that imbalance into a colour cast. A recipe built on either will not look the same through its LUT.</string>
+    <string name="lut_caveat">Colours the frame did not contain are interpolated. Grain, clarity, sharpness and noise reduction are spatial and cannot go into a LUT; white balance and dynamic range are left out too. The .cube header lists what this one dropped.</string>
     <string name="lut_no_change">The two renders came out almost identical — the camera seems to have ignored this recipe, so the LUT would barely change anything.</string>
     <string name="lut_save">Save .cube</string>
     <string name="lut_gen_unsupported">LUT creation is not compatible with the %1$s yet — only X-Trans V bodies (X-T30 III, X-T5, X100VI…) are supported for now.</string>

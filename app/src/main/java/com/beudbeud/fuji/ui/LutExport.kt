@@ -42,6 +42,7 @@ import com.beudbeud.fuji.model.FilmSimulation
 import com.beudbeud.fuji.model.Generation
 import com.beudbeud.fuji.model.Recipe
 import com.beudbeud.fuji.model.Strength
+import com.beudbeud.fuji.model.formatSigned
 import com.beudbeud.fuji.model.WhiteBalance
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -336,7 +337,10 @@ fun LutExportDialog(recipe: Recipe, onDismiss: () -> Unit) {
                         // was never asked to put in it. Both are settings of this
                         // export, not of the recipe, so nothing else records them.
                         // English and unlocalised on purpose: the file outlives the
-                        // phone it was written on.
+                        // phone it was written on. Each entry names the setting and
+                        // nothing else — "NOT IN THIS CUBE" has already said why,
+                        // and a reason repeated per line is a paragraph nobody
+                        // reads in a file that is a megabyte of numbers.
                         val dropped = buildList {
                             if (recipe.whiteBalance != WhiteBalance.AUTO ||
                                 recipe.wbShiftRed != 0 || recipe.wbShiftBlue != 0
@@ -346,8 +350,8 @@ fun LutExportDialog(recipe: Recipe, onDismiss: () -> Unit) {
                                         (recipe.kelvin?.takeIf {
                                             recipe.whiteBalance == WhiteBalance.KELVIN
                                         }?.let { " ${it}K" } ?: "") +
-                                        ", shift R${recipe.wbShiftRed} B${recipe.wbShiftBlue})" +
-                                        " — in-camera conversion ignores it, dial it in yourself"
+                                        " R${formatSigned(recipe.wbShiftRed)}" +
+                                        " B${formatSigned(recipe.wbShiftBlue)})"
                                 )
                             }
                             if (recipe.grainEffect != Strength.OFF) add("grain")
