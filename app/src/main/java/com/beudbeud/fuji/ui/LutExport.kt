@@ -457,29 +457,21 @@ fun LutExportDialog(recipe: Recipe, onDismiss: () -> Unit) {
                     // sent the user to the picker for a file the app already has.
                     // Only when the bundled one is what is in play does asking for
                     // a file mean anything.
-                    if (donorReady) {
+                    // Only a container of the user's own is worth a way out: it
+                    // hides the bundled one, and nothing else would ever drop it.
+                    // Offering the same escape from the bundled container gave one
+                    // outcome, the file picker, and it was the outcome nobody
+                    // wanted — a body that genuinely refuses the bundled container
+                    // reaches the picker on its own, through the tombstone.
+                    if (ownDonor) {
                         TextButton(onClick = {
-                            if (ownDonor) {
-                                DonorRaf.reset(context)
-                                ownDonor = false
-                                donorReady = DonorRaf.exists(context)
-                                DebugLog.log("kept container dropped for the bundled one")
-                            } else {
-                                donorReady = false
-                                DebugLog.log("bundled container set aside for a picked file")
-                            }
+                            DonorRaf.reset(context)
+                            ownDonor = false
+                            donorReady = DonorRaf.exists(context)
+                            DebugLog.log("kept container dropped for the bundled one")
                         }) {
                             Text(
-                                stringResource(
-                                    // Naming the outcome rather than the intent: one
-                                    // of these falls back to the container the app
-                                    // ships, the other asks for a file. A single
-                                    // label read as "let me choose" in both, which
-                                    // sent anyone wanting the bundled container to
-                                    // the picker instead.
-                                    if (ownDonor) R.string.lut_use_bundled
-                                    else R.string.lut_forget_donor
-                                ),
+                                stringResource(R.string.lut_use_bundled),
                                 style = MaterialTheme.typography.bodySmall,
                             )
                         }
