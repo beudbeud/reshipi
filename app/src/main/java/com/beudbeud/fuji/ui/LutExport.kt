@@ -136,10 +136,10 @@ fun LutExportDialog(recipe: Recipe, onDismiss: () -> Unit) {
     var cube by remember { mutableStateOf<String?>(null) }
     var coverage by remember { mutableStateOf(0f) }
     var warning by remember { mutableStateOf<String?>(null) }
-    // Measured on an X-T30 III: a chart reaches far more of the cube than the
-    // best photograph, so it is the default whenever it can run. The 75% that
-    // stood here counted every node a sample touched; a node now has to carry a
-    // real measurement, and the same export reports 19%.
+    // Measured on an X-T30 III: a chart reaches 54% of the cube where the best
+    // photograph reached a third of that, so it is the default whenever it can
+    // run. The figure is nodes carrying a real measurement, not nodes a sample
+    // merely touched — an earlier 75% counted the latter.
     var donorReady by remember { mutableStateOf(DonorRaf.exists(context)) }
     var ownDonor by remember { mutableStateOf(DonorRaf.kept(context)) }
     var synthetic by remember { mutableStateOf(donorReady) }
